@@ -7,4 +7,7 @@
     <string name="notification_stop">Stop</string>
     <string name="channel_updates_name">App updates</string>
     <string name="channel_updates_desc">Tells you when a new build is ready to install.</string>
+    <string name="tile_label">Speed meter</string>
+    <string name="tile_off">Off</string>
+    <string name="tile_paused">Paused</string>
 </resources>

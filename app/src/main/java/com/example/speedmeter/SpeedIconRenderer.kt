@@ -30,12 +30,12 @@ class SpeedIconRenderer(context: Context) {
         Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     }
 
-    fun render(downBytesPerSec: Long, upBytesPerSec: Long): Bitmap {
+    fun render(downBytesPerSec: Long, upBytesPerSec: Long, unit: SpeedUnit): Bitmap {
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val lineHeight = sizePx / 2f
-        drawLine(canvas, SpeedFormat.compact(downBytesPerSec), top = 0f, lineHeight)
-        drawLine(canvas, SpeedFormat.compact(upBytesPerSec), top = lineHeight, lineHeight)
+        drawLine(canvas, SpeedFormat.compact(downBytesPerSec, unit), top = 0f, lineHeight)
+        drawLine(canvas, SpeedFormat.compact(upBytesPerSec, unit), top = lineHeight, lineHeight)
         return bitmap
     }
 

@@ -5,7 +5,8 @@ package com.example.speedmeter
  * long enough to hide. Pure logic, no Android types, so it is unit-tested directly.
  */
 class RateSampler(
-    private val idleThresholdBytesPerSec: Long = 1_024,
+    /** Combined down+up rate below which the meter counts as idle; 0 disables hiding. */
+    var idleThresholdBytesPerSec: Long = 1_000,
     private val idleHideDelayMs: Long = 5_000,
 ) {
     data class Reading(val downBytesPerSec: Long, val upBytesPerSec: Long, val hidden: Boolean)

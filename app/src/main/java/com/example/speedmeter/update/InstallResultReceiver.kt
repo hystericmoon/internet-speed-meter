@@ -20,7 +20,7 @@ class InstallResultReceiver : BroadcastReceiver() {
                     UpdateNotifications.showConfirm(context, confirm)
                 }
             }
-            // On success the process is replaced; PackageReplacedReceiver takes over.
+            // On success the process is replaced; MeterRestartReceiver takes over.
             PackageInstaller.STATUS_SUCCESS -> Unit
             PackageInstaller.STATUS_FAILURE_ABORTED -> UpdateManager.onInstallCancelled()
             else -> {

@@ -59,6 +59,32 @@ class RateSamplerTest {
     }
 
     @Test
+    fun `threshold zero never hides`() {
+        sampler.idleThresholdBytesPerSec = IdleThreshold.NEVER.bytesPerSec
+        sampler.sample(0, 0, 0)
+        assertFalse(idleUntil(1_000, 60_000).hidden)
+    }
+
+    @Test
+    fun `raising the threshold at runtime takes effect`() {
+        sampler.sample(0, 0, 0)
+        var rx = 0L
+        // 50 KB/s: busy at the default threshold...
+        for (t in 1_000L..10_000L step 1_000) {
+            rx += 50_000
+            assertFalse(sampler.sample(t, rx, 0)!!.hidden)
+        }
+        // ...but idle once the user picks "below 1 Mbps" (125,000 B/s).
+        sampler.idleThresholdBytesPerSec = IdleThreshold.HIGH.bytesPerSec
+        var last: RateSampler.Reading? = null
+        for (t in 11_000L..16_000L step 1_000) {
+            rx += 50_000
+            last = sampler.sample(t, rx, 0)
+        }
+        assertTrue(last!!.hidden)
+    }
+
+    @Test
     fun `traffic unhides immediately`() {
         sampler.sample(0, 0, 0)
         assertTrue(idleUntil(1_000, 6_000).hidden)

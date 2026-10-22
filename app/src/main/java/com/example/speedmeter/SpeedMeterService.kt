@@ -19,6 +19,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -49,7 +50,6 @@ class SpeedMeterService : Service() {
         private const val CHANNEL_IDLE = "speed_idle"
 
         private const val POLL_INTERVAL_MS = 1_000L
-        private const val IDLE_THRESHOLD_BYTES_PER_SEC = 1_024L
         private const val IDLE_HIDE_DELAY_MS = 5_000L
 
         private val _state = MutableStateFlow<MeterState?>(null)
@@ -61,7 +61,9 @@ class SpeedMeterService : Service() {
             ContextCompat.startForegroundService(context, Intent(context, SpeedMeterService::class.java))
         }
 
+        /** Explicit user stop: also clears the "keep running" flag so nothing restarts it. */
         fun stop(context: Context) {
+            AppPrefs.setMeterRunning(context, false)
             context.stopService(Intent(context, SpeedMeterService::class.java))
         }
     }
@@ -71,7 +73,7 @@ class SpeedMeterService : Service() {
     private lateinit var renderer: SpeedIconRenderer
 
     private var polling = false
-    private val sampler = RateSampler(IDLE_THRESHOLD_BYTES_PER_SEC, IDLE_HIDE_DELAY_MS)
+    private val sampler = RateSampler(IdleThreshold.LOW.bytesPerSec, IDLE_HIDE_DELAY_MS)
     private var meter = MeterState()
     private var lastPostedKey: String? = null
 
@@ -107,40 +109,49 @@ class SpeedMeterService : Service() {
             },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        SpeedMeterTileService.refresh(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            AppPrefs.setMeterRunning(this, false)
             stopSelf()
             return START_NOT_STICKY
         }
 
+        // A null intent means the system restarted us after killing the process (START_STICKY).
         AppPrefs.setMeterRunning(this, true)
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            buildNotification(meter),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            } else {
-                0
-            },
-        )
+        try {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                buildNotification(meter),
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                } else {
+                    0
+                },
+            )
+        } catch (e: Exception) {
+            // Android 12+ can refuse a foreground start from the background (e.g. some sticky
+            // restarts). Keep the flag set: the next boot or app open brings the meter back.
+            Log.w("SpeedMeter", "Foreground start refused", e)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         lastPostedKey = null
 
         val interactive = getSystemService(PowerManager::class.java).isInteractive
         if (interactive) resumePolling() else pausePolling()
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     override fun onDestroy() {
         handler.removeCallbacks(tick)
         polling = false
         unregisterReceiver(screenReceiver)
-        // Only reached on a deliberate stop; a process kill (e.g. during a self-update)
-        // skips this, so the flag stays set and PackageReplacedReceiver restarts us.
-        AppPrefs.setMeterRunning(this, false)
         _state.value = null
+        SpeedMeterTileService.refresh(this)
         super.onDestroy()
     }
 
@@ -164,6 +175,7 @@ class SpeedMeterService : Service() {
         val tx = TrafficStats.getTotalTxBytes()
         if (rx == TrafficStats.UNSUPPORTED.toLong() || tx == TrafficStats.UNSUPPORTED.toLong()) return
 
+        sampler.idleThresholdBytesPerSec = AppPrefs.idleThreshold(this).bytesPerSec
         val reading = sampler.sample(now, rx, tx) ?: return
         update(MeterState(reading.downBytesPerSec, reading.upBytesPerSec, reading.hidden, paused = false))
     }
@@ -182,9 +194,10 @@ class SpeedMeterService : Service() {
         }
 
         // Skip reposting when nothing visible changed; keeps notification churn down.
+        val unit = AppPrefs.speedUnit(this)
         val key = listOf(
-            SpeedFormat.full(state.downBytesPerSec),
-            SpeedFormat.full(state.upBytesPerSec),
+            SpeedFormat.full(state.downBytesPerSec, unit),
+            SpeedFormat.full(state.upBytesPerSec, unit),
             state.hidden,
             state.paused,
             AppPrefs.transparentIconFallback(this),
@@ -198,14 +211,15 @@ class SpeedMeterService : Service() {
     private fun buildNotification(state: MeterState): Notification {
         val transparentFallback = state.hidden && AppPrefs.transparentIconFallback(this)
         val onIdleChannel = state.hidden && !transparentFallback
+        val unit = AppPrefs.speedUnit(this)
 
         val icon = if (transparentFallback) {
             renderer.transparentIcon
         } else {
-            renderer.render(state.downBytesPerSec, state.upBytesPerSec)
+            renderer.render(state.downBytesPerSec, state.upBytesPerSec, unit)
         }
 
-        val title = "↓ ${SpeedFormat.full(state.downBytesPerSec)}   ↑ ${SpeedFormat.full(state.upBytesPerSec)}"
+        val title = "↓ ${SpeedFormat.full(state.downBytesPerSec, unit)}   ↑ ${SpeedFormat.full(state.upBytesPerSec, unit)}"
         val text = when {
             state.paused -> "Paused while the screen is off"
             state.hidden -> "Idle, hidden from status bar"

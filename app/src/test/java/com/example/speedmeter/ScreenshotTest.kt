@@ -20,7 +20,7 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 // Plain Application: SpeedMeterApp would start WorkManager, which isn't set up under Robolectric.
-@Config(sdk = [35], application = android.app.Application::class, qualifiers = "w393dp-h1000dp-xxhdpi")
+@Config(sdk = [35], application = android.app.Application::class, qualifiers = "w393dp-h1700dp-xxhdpi")
 class ScreenshotTest {
 
     private val update = UpdateInfo(14, "0.1.14", "a1b2c3d", "", "")
@@ -31,8 +31,11 @@ class ScreenshotTest {
     private val noop = object : MainActions {
         override fun start() {}
         override fun stop() {}
+        override fun setUnit(unit: SpeedUnit) {}
+        override fun setIdleThreshold(threshold: IdleThreshold) {}
         override fun setTransparentFallback(enabled: Boolean) {}
         override fun setAutoUpdate(enabled: Boolean) {}
+        override fun addTile() {}
         override fun checkForUpdate() {}
         override fun installUpdate(state: UpdateState) {}
         override fun openNotificationSettings() {}
@@ -45,15 +48,17 @@ class ScreenshotTest {
         update: UpdateState,
         notificationsDenied: Boolean = false,
         canInstall: Boolean = true,
+        settings: UiSettings = UiSettings(),
+        tileOffer: TileOffer = TileOffer.CanAdd,
     ) = captureRoboImage(roborazziOptions = options) {
         ShadTheme(dark = dark) {
             MainScreen(
                 meter = meter,
                 update = update,
+                settings = settings,
                 notificationsDenied = notificationsDenied,
                 canInstallUpdates = canInstall,
-                transparentFallback = false,
-                autoUpdate = true,
+                tileOffer = tileOffer,
                 actions = noop,
                 currentVersion = "0.1.10",
             )
@@ -75,6 +80,18 @@ class ScreenshotTest {
 
     @Test fun checkFailed() =
         shot(dark = false, meter = null, UpdateState.Failed("Couldn't check for updates. Try again later.", null))
+
+    /** MB/s, hiding off (fallback row disappears), tile already added. */
+    @Test fun bytesNeverHideTileAdded() = shot(
+        dark = false,
+        busy,
+        UpdateState.UpToDate,
+        settings = UiSettings(unit = SpeedUnit.BYTES, idleThreshold = IdleThreshold.NEVER),
+        tileOffer = TileOffer.Added,
+    )
+
+    /** Android 12 and older: no in-app "Add tile" button. */
+    @Test fun manualTileDark() = shot(dark = true, meter = null, UpdateState.UpToDate, tileOffer = TileOffer.Manual)
 
     /** WCAG 1.4.4: text must survive 200% scaling without clipping or overlap. */
     @Test fun largeFont200() {

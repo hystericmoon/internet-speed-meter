@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -148,7 +149,8 @@ fun ShadSwitch(checked: Boolean, modifier: Modifier = Modifier) {
     ) {
         Box(
             Modifier
-                .offset(x = offset)
+                // Lambda form: the animation only re-places, never recomposes.
+                .offset { IntOffset(offset.roundToPx(), 0) }
                 .size(20.dp)
                 .clip(CircleShape)
                 .background(c.background),
