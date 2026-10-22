@@ -4,6 +4,13 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write # to publish the rolling "debug-latest" release
+
+concurrency:
+  group: debug-apk
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,10 +27,24 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: speed-meter-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Artifacts are zipped and hidden in the GitHub mobile app, so also publish the
+      # APK to a release that is always at the same phone-friendly URL.
+      - name: Publish to "debug-latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk speed-meter-debug.apk
+          gh release delete debug-latest --cleanup-tag --yes || true
+          gh release create debug-latest speed-meter-debug.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Latest debug build" \
+            --notes "Built from \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}. Download speed-meter-debug.apk below and open it to install."

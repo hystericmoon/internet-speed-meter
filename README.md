@@ -12,9 +12,11 @@ so it shows in the status bar.
 
 ## Installing from CI
 
-Every push runs `.github/workflows/build-debug-apk.yml`. Open the run under
-**Actions**, download the `speed-meter-debug-<sha>` artifact (a zip), unzip it and
-open `app-debug.apk`. Builds are signed with the committed `debug.keystore`, so a
+Every push runs `.github/workflows/build-debug-apk.yml` and publishes the APK to the
+**debug-latest** release. On your phone's browser open
+<https://github.com/hystericmoon/internet-speed-meter/releases/download/debug-latest/speed-meter-debug.apk>
+(or Releases → "Latest debug build") and open the downloaded file. The same APK is
+also attached to each Actions run as a zipped artifact. Builds are signed with the committed `debug.keystore`, so a
 new build installs over the previous one.
 
 ## Building locally
