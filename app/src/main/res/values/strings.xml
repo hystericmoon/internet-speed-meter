@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Speed Meter</string>
+    <string name="channel_visible_name">Speed in status bar</string>
+    <string name="channel_visible_desc">Shows live download and upload speed as the status bar icon.</string>
+    <string name="channel_idle_name">Speed meter (idle)</string>
+    <string name="channel_idle_desc">Used while the network is idle so the meter hides from the status bar.</string>
+    <string name="notification_stop">Stop</string>
+</resources>
