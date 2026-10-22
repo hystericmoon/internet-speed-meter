@@ -119,6 +119,7 @@ class SpeedMeterService : Service() {
             return START_NOT_STICKY
         }
 
+        AppPrefs.setMeterRunning(this, true)
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
@@ -140,6 +141,9 @@ class SpeedMeterService : Service() {
         handler.removeCallbacks(tick)
         polling = false
         unregisterReceiver(screenReceiver)
+        // Only reached on a deliberate stop; a process kill (e.g. during a self-update)
+        // skips this, so the flag stays set and PackageReplacedReceiver restarts us.
+        AppPrefs.setMeterRunning(this, false)
         _state.value = null
         super.onDestroy()
     }
@@ -210,7 +214,7 @@ class SpeedMeterService : Service() {
             SpeedFormat.full(state.upBytesPerSec),
             state.hidden,
             state.paused,
-            SpikeFlags.transparentIconFallback(this),
+            AppPrefs.transparentIconFallback(this),
         ).joinToString("|")
         if (key == lastPostedKey) return
         lastPostedKey = key
@@ -219,7 +223,7 @@ class SpeedMeterService : Service() {
     }
 
     private fun buildNotification(state: MeterState): Notification {
-        val transparentFallback = state.hidden && SpikeFlags.transparentIconFallback(this)
+        val transparentFallback = state.hidden && AppPrefs.transparentIconFallback(this)
         val onIdleChannel = state.hidden && !transparentFallback
 
         val icon = if (transparentFallback) {

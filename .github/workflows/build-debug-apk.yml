@@ -24,6 +24,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # versionCode comes from GITHUB_RUN_NUMBER (see app/build.gradle.kts), so every
+      # build is newer than the last and the in-app updater can compare them.
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
@@ -35,16 +37,32 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Artifacts are zipped and hidden in the GitHub mobile app, so also publish the
-      # APK to a release that is always at the same phone-friendly URL.
+      # A release at a fixed URL: phone-friendly download, and the feed the app's
+      # auto-updater reads (version.json).
       - name: Publish to "debug-latest" release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk speed-meter-debug.apk
-          gh release delete debug-latest --cleanup-tag --yes || true
-          gh release create debug-latest speed-meter-debug.apk \
-            --prerelease \
-            --target "$GITHUB_SHA" \
-            --title "Latest debug build" \
-            --notes "Built from \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}. Download speed-meter-debug.apk below and open it to install."
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/debug-latest"
+          jq -n \
+            --argjson versionCode "$GITHUB_RUN_NUMBER" \
+            --arg versionName "0.1.$GITHUB_RUN_NUMBER" \
+            --arg commit "${GITHUB_SHA::7}" \
+            --arg apkUrl "$base/speed-meter-debug.apk" \
+            --arg sha256 "$(sha256sum speed-meter-debug.apk | cut -d' ' -f1)" \
+            '$ARGS.named' > version.json
+          cat version.json
+          notes="Version 0.1.$GITHUB_RUN_NUMBER, built from \`$GITHUB_REF_NAME\` at ${GITHUB_SHA::7}. Download speed-meter-debug.apk below and open it to install."
+
+          if gh release view debug-latest > /dev/null 2>&1; then
+            # Update in place so the download URLs never 404 mid-publish.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/debug-latest" -f sha="$GITHUB_SHA" -F force=true
+            gh release upload debug-latest speed-meter-debug.apk --clobber
+            # Manifest last, so it never points at an APK that isn't there yet.
+            gh release upload debug-latest version.json --clobber
+            gh release edit debug-latest --notes "$notes"
+          else
+            gh release create debug-latest speed-meter-debug.apk version.json \
+              --prerelease --target "$GITHUB_SHA" --title "Latest debug build" --notes "$notes"
+          fi
