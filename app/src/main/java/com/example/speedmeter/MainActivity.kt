@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -177,7 +178,7 @@ interface MainActions {
 }
 
 @Composable
-private fun MainScreen(
+internal fun MainScreen(
     meter: MeterState?,
     update: UpdateState,
     notificationsDenied: Boolean,
@@ -185,6 +186,7 @@ private fun MainScreen(
     transparentFallback: Boolean,
     autoUpdate: Boolean,
     actions: MainActions,
+    currentVersion: String = BuildConfig.VERSION_NAME,
 ) {
     Column(
         modifier = Modifier
@@ -208,8 +210,8 @@ private fun MainScreen(
         }
 
         MeterCard(meter, actions)
-        UpdateCard(update, canInstallUpdates, actions)
-        SettingsCard(update, transparentFallback, autoUpdate, actions)
+        UpdateCard(update, canInstallUpdates, currentVersion, actions)
+        SettingsCard(update, transparentFallback, autoUpdate, currentVersion, actions)
     }
 }
 
@@ -242,9 +244,17 @@ private fun Header(meter: MeterState?) {
 @Composable
 private fun MeterCard(meter: MeterState?, actions: MainActions) {
     ShadCard {
-        Row(Modifier.fillMaxWidth()) {
-            Stat("Download", meter?.downBytesPerSec, Modifier.weight(1f))
-            Stat("Upload", meter?.upBytesPerSec, Modifier.weight(1f))
+        // Side by side only fits up to ~150% text; past that, stack so values never collide.
+        if (LocalDensity.current.fontScale < 1.5f) {
+            Row(Modifier.fillMaxWidth()) {
+                Stat("Download", meter?.downBytesPerSec, Modifier.weight(1f))
+                Stat("Upload", meter?.upBytesPerSec, Modifier.weight(1f))
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Stat("Download", meter?.downBytesPerSec)
+                Stat("Upload", meter?.upBytesPerSec)
+            }
         }
         Spacer(Modifier.height(20.dp))
         ShadSeparator()
@@ -283,7 +293,7 @@ private fun Stat(label: String, bytesPerSec: Long?, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun UpdateCard(update: UpdateState, canInstall: Boolean, actions: MainActions) {
+private fun UpdateCard(update: UpdateState, canInstall: Boolean, currentVersion: String, actions: MainActions) {
     val info = when (update) {
         is UpdateState.Available -> update.info
         is UpdateState.Downloading -> update.info
@@ -295,7 +305,7 @@ private fun UpdateCard(update: UpdateState, canInstall: Boolean, actions: MainAc
     ShadCard(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
         CardHeader(
             "Update available",
-            "Version ${info.versionName} (${info.commit}). You have ${BuildConfig.VERSION_NAME}.",
+            "Version ${info.versionName} (${info.commit}). You have $currentVersion.",
         )
         Spacer(Modifier.height(16.dp))
         when (update) {
@@ -344,6 +354,7 @@ private fun SettingsCard(
     update: UpdateState,
     transparentFallback: Boolean,
     autoUpdate: Boolean,
+    currentVersion: String,
     actions: MainActions,
 ) {
     ShadCard {
@@ -370,7 +381,7 @@ private fun SettingsCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Version ${BuildConfig.VERSION_NAME}", style = Shad.type.small, color = Shad.colors.foreground)
+                Text("Version $currentVersion", style = Shad.type.small, color = Shad.colors.foreground)
                 Text(
                     when (update) {
                         UpdateState.Idle -> "Not checked yet"

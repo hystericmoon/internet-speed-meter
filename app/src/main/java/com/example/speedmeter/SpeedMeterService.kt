@@ -71,11 +71,7 @@ class SpeedMeterService : Service() {
     private lateinit var renderer: SpeedIconRenderer
 
     private var polling = false
-    private var lastSampleAt = 0L
-    private var lastRx = 0L
-    private var lastTx = 0L
-    /** elapsedRealtime when traffic first dropped below the threshold; 0 while active. */
-    private var idleSince = 0L
+    private val sampler = RateSampler(IDLE_THRESHOLD_BYTES_PER_SEC, IDLE_HIDE_DELAY_MS)
     private var meter = MeterState()
     private var lastPostedKey: String? = null
 
@@ -151,9 +147,7 @@ class SpeedMeterService : Service() {
     private fun resumePolling() {
         if (polling) return
         polling = true
-        // Fresh baseline: bytes moved while the screen was off must not count as one spike.
-        lastSampleAt = 0L
-        if (!meter.hidden) idleSince = 0L
+        sampler.reset()
         update(meter.copy(paused = false))
         handler.post(tick)
     }
@@ -170,29 +164,8 @@ class SpeedMeterService : Service() {
         val tx = TrafficStats.getTotalTxBytes()
         if (rx == TrafficStats.UNSUPPORTED.toLong() || tx == TrafficStats.UNSUPPORTED.toLong()) return
 
-        if (lastSampleAt == 0L) {
-            lastSampleAt = now
-            lastRx = rx
-            lastTx = tx
-            return
-        }
-
-        val elapsed = (now - lastSampleAt).coerceAtLeast(1)
-        // Counters can go backwards when an interface resets; treat that as zero.
-        val down = (rx - lastRx).coerceAtLeast(0) * 1_000 / elapsed
-        val up = (tx - lastTx).coerceAtLeast(0) * 1_000 / elapsed
-        lastSampleAt = now
-        lastRx = rx
-        lastTx = tx
-
-        if (down + up >= IDLE_THRESHOLD_BYTES_PER_SEC) {
-            idleSince = 0L
-        } else if (idleSince == 0L) {
-            idleSince = now
-        }
-        val hidden = idleSince != 0L && now - idleSince >= IDLE_HIDE_DELAY_MS
-
-        update(MeterState(down, up, hidden, paused = false))
+        val reading = sampler.sample(now, rx, tx) ?: return
+        update(MeterState(reading.downBytesPerSec, reading.upBytesPerSec, reading.hidden, paused = false))
     }
 
     private fun update(newState: MeterState) {

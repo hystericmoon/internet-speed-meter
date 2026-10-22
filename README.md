@@ -30,12 +30,33 @@ and the app also checks the SHA-256 before installing.
 
 ## Installing from CI
 
-Every push runs `.github/workflows/build-debug-apk.yml` and publishes the APK to the
-**debug-latest** release. On your phone's browser open
+`.github/workflows/build-debug-apk.yml` runs on every push; pushes to the default branch
+also publish the APK to the **debug-latest** release. On your phone's browser open
 <https://github.com/hystericmoon/internet-speed-meter/releases/download/debug-latest/speed-meter-debug.apk>
 (or Releases → "Latest debug build") and open the downloaded file. The same APK is
 also attached to each Actions run as a zipped artifact. Builds are signed with the committed `debug.keystore`, so a
 new build installs over the previous one.
+
+## Tests
+
+- Unit tests: `SpeedFormatTest`, `RateSamplerTest` (rate maths, 5 s idle hiding,
+  screen-off reset), `UpdateInfoTest`.
+- Screenshot tests (`ScreenshotTest`, Robolectric + Roborazzi): seven states of the main
+  screen, including dark mode and 200% font scale. Baselines live in
+  `app/src/test/screenshots`.
+
+CI runs `verifyRoborazziDebug lintDebug assembleDebug` on every push. If a screenshot no
+longer matches, the run fails and uploads a `screenshot-diffs` artifact with
+before / after / diff images.
+
+**After an intended UI change:** Actions → "Build debug APK" → Run workflow → tick
+"Re-record screenshot baselines". CI records new baselines and commits them to the branch.
+Locally: `./gradlew recordRoborazziDebug`.
+
+## Release channel
+
+Only pushes to the repository's **default branch** publish to `debug-latest`, the feed
+the auto-updater reads. Other branches still build and attach the APK as an artifact.
 
 ## Building locally
 
