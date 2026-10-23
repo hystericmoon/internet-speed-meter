@@ -92,6 +92,7 @@ class SpeedMeterService : Service() {
         when (key) {
             AppPrefs.KEY_OVERLAY -> syncOverlay()
             AppPrefs.KEY_OVERLAY_POSITION -> overlay.setPosition(AppPrefs.overlayPosition(this))
+            AppPrefs.KEY_OVERLAY_HIDE_LANDSCAPE -> overlay.setHideInLandscape(AppPrefs.overlayHideInLandscape(this))
         }
     }
 
@@ -179,7 +180,7 @@ class SpeedMeterService : Service() {
     /** Shows or removes the overlay to match the setting, then reposts the notification for the new mode. */
     private fun syncOverlay() {
         if (AppPrefs.overlayActive(this)) {
-            overlay.show(AppPrefs.overlayPosition(this))
+            overlay.show(AppPrefs.overlayPosition(this), AppPrefs.overlayHideInLandscape(this))
             overlay.render(meter, AppPrefs.speedUnit(this))
         } else {
             overlay.hide()
@@ -238,7 +239,6 @@ class SpeedMeterService : Service() {
             SpeedFormat.full(state.upBytesPerSec, unit),
             state.hidden,
             state.paused,
-            AppPrefs.transparentIconFallback(this),
         ).joinToString("|")
         if (key == lastPostedKey) return
         lastPostedKey = key
@@ -249,15 +249,12 @@ class SpeedMeterService : Service() {
     private fun buildNotification(state: MeterState): Notification {
         if (overlay.isShowing) return buildOverlayModeNotification()
 
-        val transparentFallback = state.hidden && AppPrefs.transparentIconFallback(this)
-        val onIdleChannel = state.hidden && !transparentFallback
+        // Idle: repost on the MIN channel, which keeps it out of the status bar. On a Samsung A55
+        // that still left a gap; a transparent icon can only ever leave a gap, so that variant was dropped.
+        val onIdleChannel = state.hidden
         val unit = AppPrefs.speedUnit(this)
 
-        val icon = if (transparentFallback) {
-            renderer.transparentIcon
-        } else {
-            renderer.render(state.downBytesPerSec, state.upBytesPerSec, unit)
-        }
+        val icon = renderer.render(state.downBytesPerSec, state.upBytesPerSec, unit)
 
         val title = "↓ ${SpeedFormat.full(state.downBytesPerSec, unit)}   ↑ ${SpeedFormat.full(state.upBytesPerSec, unit)}"
         val text = when {

@@ -108,21 +108,19 @@ silently still do. Anything that needs a tap waits until you open the app.
 |---|---|---|---|
 | **Show speed as** | Icon · Overlay | **Icon** | See [display modes](#keeping-it-out-of-the-notification-panel-overlay-mode). Overlay needs *Display over other apps*. |
 | **Position** | Slider, left → right | 30% from left | Overlay only. Moves the overlay live. |
+| **Hide in landscape** | On · Off | **On** | Overlay only. The dependable way to keep it off full-screen video and games, which are almost always landscape. See [Full-screen detection](#full-screen-detection). |
 | **Units** | Mbps · MB/s | **Mbps** | Mbps (megabits, decimal) is how ISPs and speed tests quote speed. MB/s (megabytes, binary) is what file managers and downloads show. 1 MB/s ≈ 8.4 Mbps. |
 | **Hide when idle** | Never hide · Below 8 kbps · Below 100 kbps · Below 1 Mbps | **Below 8 kbps** | Hides from the status bar after **5 seconds** below the threshold (download + upload combined). Comes back the moment traffic rises above it. Raise it if background sync keeps the icon flickering on. |
-| **Transparent-icon fallback** | On · Off | Off | How the icon hides (see below). Only shown in icon mode with hiding on. In overlay mode the overlay simply disappears. |
 
 **Why Mbps by default:** people check the meter against their plan ("100 Mbps") and
 speed-test results. Showing MB/s would read 8× smaller than they expect. This follows
 Nielsen's *match between the system and the real world* heuristic.
 
-**Two ways to hide the icon**, which is what this spike is testing:
-
-- **Off (default):** the notification moves to a *minimum-importance* channel, which
-  Android keeps out of the status bar. Clean, but some phones ignore it for
-  foreground-service notifications.
-- **On:** stays on the normal channel and draws a fully transparent icon. Works more
-  widely, but usually leaves an empty gap in the status bar.
+**How hiding works:** in icon mode the notification moves to a *minimum-importance*
+channel, which Android keeps out of the status bar. On a Samsung A55 this hides the icon
+but leaves a gap where it was. An earlier "transparent icon" variant was removed:
+a transparent icon can only ever leave a gap too. In overlay mode the overlay simply
+disappears, with no gap.
 
 ### App
 
@@ -145,7 +143,7 @@ Nielsen's *match between the system and the real world* heuristic.
  SpeedMeterService (foreground, type specialUse)
         ├─ SpeedIconRenderer → 24dp bitmap, two lines → notification small icon (status bar)
         ├─ notification title: full speeds, Stop action
-        ├─ idle? → repost on MIN channel, or transparent icon (fallback)
+        ├─ idle? → repost on MIN channel (out of the status bar)
         ├─ overlay mode → SpeedOverlay window over the status bar (notification goes static, MIN)
         └─ StateFlow ──► MainActivity (Compose UI) and the Quick Settings tile
 ```
@@ -166,9 +164,23 @@ Nielsen's *match between the system and the real world* heuristic.
   window at the top of the screen, sized to the status bar height and laid out into the
   cutout area. It has a fixed width so it doesn't jitter, and white text with a soft
   shadow so it reads on dark and light bars. It goes invisible when the meter is idle
-  and when a full-screen app (video, games) hides the status bar, and re-lays out on
-  rotation. Its alpha is capped at 0.8, Android 12's limit for letting touches pass
-  through overlays, so it can never block taps.
+  and in full screen (below), and re-lays out on rotation. Its alpha is capped at 0.8,
+  Android 12's limit for letting touches pass through overlays, so it can never block taps.
+
+### Full-screen detection
+
+Android gives apps no direct way to know whether *another* app has hidden the status
+bar. Insets alone failed on a Samsung A55 (One UI, Android 15): the overlay stayed up
+over full-screen video. The overlay now hides if **any** of these says "full screen":
+
+| Signal | How | Reliability |
+|---|---|---|
+| **Landscape** | Configuration orientation, with *Hide in landscape* on (default) | Dependable. Covers nearly all video and games |
+| **Insets** | Status-bar visibility reported to the overlay window | Works on stock Android; failed on One UI |
+| **Probe window** | A 1px invisible overlay that *fits* the status bar: it starts below the bar, and moves to y = 0 when the bar is hidden. It only counts after it's been seen below a visible bar, so a probe that doesn't move can't hide the overlay by mistake | Untested on device |
+
+The app shows a **Full-screen detection log** under the overlay settings. It's a testing
+aid listing which signal fired and when, so results can be reported from the phone.
 - **Staying alive.** `START_STICKY` after a kill. `MeterRestartReceiver` restarts it on
   `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` (both exempt from Android's background-start
   limits). If Android still refuses, opening the app restarts it.
@@ -265,13 +277,12 @@ The spike's open questions can only be answered on real hardware. Please report
 **phone model, Android version, and what you saw**:
 
 - [ ] **Icon legibility:** can you read both lines at arm's length, on light and dark wallpaper?
-- [ ] **Idle hiding (default):** stay idle 5 s. Does the icon disappear, or does a "running" indicator appear instead?
-- [ ] **Transparent fallback:** turn it on and go idle. How big is the gap?
+- [x] **Idle hiding:** hides, but leaves a gap (Samsung A55). Transparent-icon variant removed as a result.
 - [ ] **Screen off/on:** after unlocking, does the meter resume without a false spike?
-- [ ] **Overlay: visible?** switch to Overlay. Can you see the text in the status bar, or is it hidden behind the bar?
+- [x] **Overlay: visible?** yes on Samsung A55.
 - [ ] **Overlay: position:** can you find a spot that clears the clock, icons and camera? Does it hold after rotating?
-- [ ] **Overlay: full screen:** play a full-screen video. Does the overlay disappear with the status bar, and come back after?
-- [ ] **Overlay: panel:** turn Speed Meter notifications off. Is it gone from the panel while the speed keeps updating?
+- [ ] **Overlay: full screen:** the first version stayed up over full-screen video on a Samsung A55. Retest with a landscape video, then a portrait full-screen app (Reels, Shorts), and screenshot the detection log afterwards.
+- [ ] **Overlay: panel:** on Samsung A55 it moved into "Other notifications". Still to confirm: is that with Speed Meter notifications fully **off**?
 - [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
 - [ ] **Units:** switch Mbps ↔ MB/s. Do the app, notification and icon all follow within a second?
 - [ ] **Threshold:** pick "Below 1 Mbps" while streaming a little. Does it hide as expected?
@@ -364,15 +375,15 @@ app/src/main/java/com/example/speedmeter/
 
 ## Known limitations and open questions
 
-- **Final hiding method is undecided.** Both methods stay until device testing shows
-  which one works (see [Testing on a device](#testing-on-a-device)). If neither does,
-  the fallback plan is to never hide and show a dimmed `0K` instead.
+- **Icon mode leaves a gap when idle** on Samsung (A55, One UI). Android gives apps no
+  way to free the slot; overlay mode avoids it.
 - **Overlay visibility varies by phone.** Since Android 12, app overlays are drawn
   *below* the status bar layer. On the usual transparent bar the text shows through; a
-  solid-coloured bar (some apps, some OEM skins) covers it. Full-screen detection relies
-  on status-bar inset changes reaching the overlay window, which device testing needs to
-  confirm. Drawing *above* the status bar would need an accessibility service, which
-  isn't appropriate for this and is rejected by Google Play.
+  solid-coloured bar (some apps, some OEM skins) covers it. Visible on a Samsung A55.
+  Drawing *above* the status bar would need an accessibility service, which isn't
+  appropriate for this and is rejected by Google Play.
+- **Portrait full screen** (Reels, Shorts, immersive readers) depends on the insets or
+  probe signal; only landscape is guaranteed.
 - **Overlay text colour is fixed** (white with a shadow). Android doesn't tell other
   apps whether the status bar is currently using light or dark icons.
 - **Total device traffic.** `TrafficStats` totals include all apps and interfaces

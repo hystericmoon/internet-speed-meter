@@ -14,25 +14,13 @@ enum class IdleThreshold(val bytesPerSec: Long) {
 /** Small persisted settings and flags. */
 object AppPrefs {
     private const val PREFS = "app_prefs"
-    private const val KEY_TRANSPARENT_ICON_FALLBACK = "transparent_icon_fallback"
     private const val KEY_AUTO_UPDATE = "auto_update"
     private const val KEY_METER_RUNNING = "meter_running"
     private const val KEY_SPEED_UNIT = "speed_unit"
     private const val KEY_IDLE_THRESHOLD = "idle_threshold"
     const val KEY_OVERLAY = "overlay"
     const val KEY_OVERLAY_POSITION = "overlay_position"
-
-    /**
-     * Spike flag. When idle, hide by drawing a fully transparent small icon on the visible
-     * channel, instead of reposting on the IMPORTANCE_MIN channel. Use this on devices where
-     * the MIN channel is ignored or bumped for foreground-service notifications.
-     */
-    fun transparentIconFallback(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_TRANSPARENT_ICON_FALLBACK, false)
-
-    fun setTransparentIconFallback(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_TRANSPARENT_ICON_FALLBACK, enabled).apply()
-    }
+    const val KEY_OVERLAY_HIDE_LANDSCAPE = "overlay_hide_landscape"
 
     /** Check for, download and install new builds in the background. */
     fun autoUpdate(context: Context): Boolean =
@@ -87,6 +75,18 @@ object AppPrefs {
 
     fun setOverlayPosition(context: Context, fraction: Float) {
         prefs(context).edit().putFloat(KEY_OVERLAY_POSITION, fraction).apply()
+    }
+
+    /**
+     * Hide the overlay whenever the phone is in landscape. The dependable full-screen rule:
+     * video and games are almost always landscape, and detecting a hidden status bar from
+     * another app is unreliable on some OEMs.
+     */
+    fun overlayHideInLandscape(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_OVERLAY_HIDE_LANDSCAPE, true)
+
+    fun setOverlayHideInLandscape(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_OVERLAY_HIDE_LANDSCAPE, enabled).apply()
     }
 
     /** For components that react to settings live (the service moves the overlay as you drag). */

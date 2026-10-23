@@ -49,10 +49,10 @@ class MainActivity : ComponentActivity() {
         settings = UiSettings(
             unit = AppPrefs.speedUnit(this),
             idleThreshold = AppPrefs.idleThreshold(this),
-            transparentFallback = AppPrefs.transparentIconFallback(this),
             autoUpdate = AppPrefs.autoUpdate(this),
             overlay = AppPrefs.overlay(this),
             overlayPosition = AppPrefs.overlayPosition(this),
+            overlayHideInLandscape = AppPrefs.overlayHideInLandscape(this),
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) tileOffer = TileOffer.CanAdd
         if (savedInstanceState == null) handleIntent(intent)
@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
             ShadTheme {
                 val meter by SpeedMeterService.state.collectAsStateWithLifecycle()
                 val update by UpdateManager.state.collectAsStateWithLifecycle()
+                val overlayLog by OverlayDiagnostics.events.collectAsStateWithLifecycle()
                 MainScreen(
                     meter = meter,
                     update = update,
@@ -70,6 +71,7 @@ class MainActivity : ComponentActivity() {
                     tileOffer = tileOffer,
                     actions = actions,
                     canDrawOverlays = canDrawOverlays,
+                    overlayLog = overlayLog,
                 )
             }
         }
@@ -132,10 +134,6 @@ class MainActivity : ComponentActivity() {
             AppPrefs.setIdleThreshold(this@MainActivity, threshold)
         }
 
-        override fun setTransparentFallback(enabled: Boolean) {
-            settings = settings.copy(transparentFallback = enabled)
-            AppPrefs.setTransparentIconFallback(this@MainActivity, enabled)
-        }
 
         override fun setOverlay(enabled: Boolean) {
             settings = settings.copy(overlay = enabled)
@@ -147,6 +145,11 @@ class MainActivity : ComponentActivity() {
         override fun setOverlayPosition(fraction: Float) {
             settings = settings.copy(overlayPosition = fraction)
             AppPrefs.setOverlayPosition(this@MainActivity, fraction)
+        }
+
+        override fun setOverlayHideInLandscape(enabled: Boolean) {
+            settings = settings.copy(overlayHideInLandscape = enabled)
+            AppPrefs.setOverlayHideInLandscape(this@MainActivity, enabled)
         }
 
         override fun openOverlaySettings() {

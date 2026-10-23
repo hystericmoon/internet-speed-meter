@@ -26,10 +26,6 @@ class SpeedIconRenderer(context: Context) {
     }
     private val digitBounds = Rect()
 
-    val transparentIcon: Bitmap by lazy {
-        Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-    }
-
     fun render(downBytesPerSec: Long, upBytesPerSec: Long, unit: SpeedUnit): Bitmap {
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

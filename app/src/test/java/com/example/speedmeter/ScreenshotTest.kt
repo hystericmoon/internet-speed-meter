@@ -33,9 +33,9 @@ class ScreenshotTest {
         override fun stop() {}
         override fun setUnit(unit: SpeedUnit) {}
         override fun setIdleThreshold(threshold: IdleThreshold) {}
-        override fun setTransparentFallback(enabled: Boolean) {}
         override fun setOverlay(enabled: Boolean) {}
         override fun setOverlayPosition(fraction: Float) {}
+        override fun setOverlayHideInLandscape(enabled: Boolean) {}
         override fun openOverlaySettings() {}
         override fun setAutoUpdate(enabled: Boolean) {}
         override fun addTile() {}
@@ -54,6 +54,7 @@ class ScreenshotTest {
         settings: UiSettings = UiSettings(),
         tileOffer: TileOffer = TileOffer.CanAdd,
         canDrawOverlays: Boolean = false,
+        overlayLog: List<String> = emptyList(),
     ) = captureRoboImage(roborazziOptions = options) {
         ShadTheme(dark = dark) {
             MainScreen(
@@ -65,6 +66,7 @@ class ScreenshotTest {
                 tileOffer = tileOffer,
                 actions = noop,
                 canDrawOverlays = canDrawOverlays,
+                overlayLog = overlayLog,
                 currentVersion = "0.1.10",
             )
         }
@@ -110,6 +112,13 @@ class ScreenshotTest {
         notificationsDenied = true,
         settings = UiSettings(overlay = true),
         canDrawOverlays = true,
+        overlayLog = listOf(
+            "14:02:11  overlay shown",
+            "14:02:11  orientation: portrait",
+            "14:02:12  probe: calibrated (top=96)",
+            "14:05:40  orientation: landscape",
+            "14:05:40  probe: status bar hidden (top=0)",
+        ),
     )
 
     /** WCAG 1.4.4: text must survive 200% scaling without clipping or overlap. */

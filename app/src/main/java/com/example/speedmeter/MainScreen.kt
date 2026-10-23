@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +32,8 @@ import com.example.speedmeter.ui.BadgeVariant
 import com.example.speedmeter.ui.ButtonVariant
 import com.example.speedmeter.ui.CardHeader
 import com.example.speedmeter.ui.Geist
+import com.example.speedmeter.ui.GeistMono
+import com.example.speedmeter.ui.ShadRadius
 import com.example.speedmeter.ui.Shad
 import com.example.speedmeter.ui.ShadAlert
 import com.example.speedmeter.ui.ShadBadge
@@ -48,11 +51,11 @@ import com.example.speedmeter.update.UpdateState
 data class UiSettings(
     val unit: SpeedUnit = SpeedUnit.BITS,
     val idleThreshold: IdleThreshold = IdleThreshold.LOW,
-    val transparentFallback: Boolean = false,
     val autoUpdate: Boolean = true,
     /** User picked overlay mode; it's live only when [MainScreen]'s canDrawOverlays is true too. */
     val overlay: Boolean = false,
     val overlayPosition: Float = 0.3f,
+    val overlayHideInLandscape: Boolean = true,
 )
 
 enum class TileOffer {
@@ -67,9 +70,9 @@ interface MainActions {
     fun stop()
     fun setUnit(unit: SpeedUnit)
     fun setIdleThreshold(threshold: IdleThreshold)
-    fun setTransparentFallback(enabled: Boolean)
     fun setOverlay(enabled: Boolean)
     fun setOverlayPosition(fraction: Float)
+    fun setOverlayHideInLandscape(enabled: Boolean)
     fun openOverlaySettings()
     fun setAutoUpdate(enabled: Boolean)
     fun addTile()
@@ -89,6 +92,7 @@ internal fun MainScreen(
     tileOffer: TileOffer,
     actions: MainActions,
     canDrawOverlays: Boolean = false,
+    overlayLog: List<String> = emptyList(),
     currentVersion: String = BuildConfig.VERSION_NAME,
 ) {
     Column(
@@ -115,7 +119,7 @@ internal fun MainScreen(
 
         MeterCard(meter, settings.unit, actions)
         UpdateCard(update, canInstallUpdates, currentVersion, actions)
-        DisplayCard(settings, canDrawOverlays, actions)
+        DisplayCard(settings, canDrawOverlays, overlayLog, actions)
         AppCard(update, settings, tileOffer, currentVersion, actions)
     }
 }
@@ -265,7 +269,12 @@ private fun FieldLabel(title: String, description: String) {
 }
 
 @Composable
-private fun DisplayCard(settings: UiSettings, canDrawOverlays: Boolean, actions: MainActions) {
+private fun DisplayCard(
+    settings: UiSettings,
+    canDrawOverlays: Boolean,
+    overlayLog: List<String>,
+    actions: MainActions,
+) {
     ShadCard {
         CardHeader("Display")
         Spacer(Modifier.height(16.dp))
@@ -302,6 +311,13 @@ private fun DisplayCard(settings: UiSettings, canDrawOverlays: Boolean, actions:
                     onValueChange = actions::setOverlayPosition,
                     stateLabel = "${(settings.overlayPosition * 100).toInt()}% from the left",
                 )
+                SettingRow(
+                    title = "Hide in landscape",
+                    description = "Full-screen video and games are almost always landscape. " +
+                        "Turn off to keep the overlay in landscape apps that show the status bar.",
+                    checked = settings.overlayHideInLandscape,
+                    onCheckedChange = actions::setOverlayHideInLandscape,
+                )
                 Spacer(Modifier.height(8.dp))
                 ShadAlert(
                     title = "Remove it from the notification panel",
@@ -311,6 +327,8 @@ private fun DisplayCard(settings: UiSettings, canDrawOverlays: Boolean, actions:
                 ) {
                     ShadButton("Notification settings", actions::openNotificationSettings, variant = ButtonVariant.Outline)
                 }
+                Spacer(Modifier.height(16.dp))
+                DetectionLog(overlayLog)
             }
         }
 
@@ -337,18 +355,32 @@ private fun DisplayCard(settings: UiSettings, canDrawOverlays: Boolean, actions:
             label = { idleLabel(it, settings.unit) },
             onSelect = actions::setIdleThreshold,
         )
+    }
+}
 
-        // Only relevant to icon mode with hiding on (progressive disclosure).
-        if (settings.idleThreshold != IdleThreshold.NEVER && !(settings.overlay && canDrawOverlays)) {
-            Spacer(Modifier.height(8.dp))
-            ShadSeparator()
-            SettingRow(
-                title = "Transparent-icon fallback",
-                description = "Hide by blanking the icon instead of moving to the minimum-importance channel.",
-                checked = settings.transparentFallback,
-                onCheckedChange = actions::setTransparentFallback,
-            )
-        }
+/** Spike-only readout of what full-screen detection saw, so results can be reported from the phone. */
+@Composable
+private fun DetectionLog(lines: List<String>) {
+    val c = Shad.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(c.muted, RoundedCornerShape(ShadRadius.lg))
+            .padding(12.dp),
+    ) {
+        Text("Full-screen detection log", style = Shad.type.small, color = c.foreground)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "Testing aid. If the overlay stays up during full-screen video, screenshot this afterwards.",
+            style = Shad.type.muted,
+            color = c.mutedForeground,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (lines.isEmpty()) "No events yet." else lines.joinToString("\n"),
+            style = Shad.type.muted.copy(fontFamily = GeistMono, fontSize = 12.sp),
+            color = c.foreground,
+        )
     }
 }
 
