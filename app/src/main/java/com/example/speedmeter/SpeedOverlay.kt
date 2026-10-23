@@ -46,6 +46,8 @@ class SpeedOverlay(private val context: Context) {
     private var hideInLandscape = true
     private var hiddenWhenIdle = false
     private var lastLandscape: Boolean? = null
+    /** Last logged hide reason; "" = never logged, null = visible. */
+    private var lastReason: String? = ""
 
     // Full-screen signals; see class doc.
     private var insetsSayHidden = false
@@ -112,17 +114,19 @@ class SpeedOverlay(private val context: Context) {
         view = text
         params = lp
         addProbe()
-        OverlayDiagnostics.log("overlay shown")
+        DiagnosticsLog.log("overlay shown")
         relayout()
     }
 
     fun hide() {
+        if (view != null) DiagnosticsLog.log("overlay removed")
         view?.let { runCatching { windowManager.removeView(it) } }
         probe?.let { runCatching { windowManager.removeView(it) } }
         view = null
         params = null
         probe = null
         lastLandscape = null
+        lastReason = ""
         probeCalibrated = false
         probeSaysHidden = false
         insetsSayHidden = false
@@ -138,10 +142,13 @@ class SpeedOverlay(private val context: Context) {
         applyVisibility()
     }
 
+    /** Called every second while polling. Also re-reads the full-screen signals, so a missed
+     *  or stale event (e.g. around lock/unlock) can't keep the overlay hidden for good. */
     fun render(state: MeterState, unit: SpeedUnit) {
         val v = view ?: return
         v.text = format(state.downBytesPerSec, state.upBytesPerSec, unit)
         hiddenWhenIdle = state.hidden
+        pollSignals()
         applyVisibility()
     }
 
@@ -155,7 +162,7 @@ class SpeedOverlay(private val context: Context) {
         val landscape = isLandscape()
         if (landscape != lastLandscape) {
             lastLandscape = landscape
-            OverlayDiagnostics.log(if (landscape) "orientation: landscape" else "orientation: portrait")
+            DiagnosticsLog.log(if (landscape) "orientation: landscape" else "orientation: portrait")
         }
         applyVisibility()
     }
@@ -164,27 +171,44 @@ class SpeedOverlay(private val context: Context) {
         context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     private fun applyVisibility() {
-        val fullScreen = insetsSayHidden || (probeCalibrated && probeSaysHidden)
-        val hide = hiddenWhenIdle || fullScreen || (hideInLandscape && isLandscape())
+        val v = view ?: return
+        val reason = hideReason(
+            idle = hiddenWhenIdle,
+            landscape = hideInLandscape && isLandscape(),
+            insetsHidden = insetsSayHidden,
+            probeHidden = probeCalibrated && probeSaysHidden,
+        )
+        if (reason != lastReason) {
+            lastReason = reason
+            DiagnosticsLog.log(if (reason == null) "overlay visible" else "overlay hidden: $reason")
+        }
         // INVISIBLE, not GONE: the view must stay laid out to keep receiving inset changes.
-        view?.visibility = if (hide) View.INVISIBLE else View.VISIBLE
+        v.visibility = if (reason == null) View.VISIBLE else View.INVISIBLE
+    }
+
+    private fun pollSignals() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            view?.rootWindowInsets?.let { setInsetsHidden(!it.isVisible(WindowInsets.Type.statusBars())) }
+        }
+        probe?.let(::readProbe)
+    }
+
+    private fun setInsetsHidden(hidden: Boolean) {
+        if (hidden != insetsSayHidden) DiagnosticsLog.log("insets: status bar ${if (hidden) "hidden" else "shown"}")
+        insetsSayHidden = hidden
     }
 
     @Suppress("DEPRECATION")
     private fun watchInsets(v: View) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             v.setOnApplyWindowInsetsListener { _, insets ->
-                val hidden = !insets.isVisible(WindowInsets.Type.statusBars())
-                if (hidden != insetsSayHidden) OverlayDiagnostics.log("insets: status bar ${if (hidden) "hidden" else "shown"}")
-                insetsSayHidden = hidden
+                setInsetsHidden(!insets.isVisible(WindowInsets.Type.statusBars()))
                 applyVisibility()
                 insets
             }
         } else {
             v.setOnSystemUiVisibilityChangeListener { flags ->
-                val hidden = flags and View.SYSTEM_UI_FLAG_FULLSCREEN != 0
-                if (hidden != insetsSayHidden) OverlayDiagnostics.log("ui flags: status bar ${if (hidden) "hidden" else "shown"}")
-                insetsSayHidden = hidden
+                setInsetsHidden(flags and View.SYSTEM_UI_FLAG_FULLSCREEN != 0)
                 applyVisibility()
             }
         }
@@ -210,19 +234,8 @@ class SpeedOverlay(private val context: Context) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
-        val location = IntArray(2)
         p.viewTreeObserver.addOnGlobalLayoutListener {
-            p.getLocationOnScreen(location)
-            val top = location[1]
-            if (top > 0 && !probeCalibrated) {
-                probeCalibrated = true
-                OverlayDiagnostics.log("probe: calibrated (top=$top)")
-            }
-            val hidden = top == 0
-            if (probeCalibrated && hidden != probeSaysHidden) {
-                OverlayDiagnostics.log("probe: status bar ${if (hidden) "hidden" else "shown"} (top=$top)")
-            }
-            probeSaysHidden = hidden
+            readProbe(p)
             applyVisibility()
         }
         try {
@@ -231,6 +244,22 @@ class SpeedOverlay(private val context: Context) {
         } catch (e: Exception) {
             Log.w("SpeedMeter", "Couldn't add full-screen probe", e)
         }
+    }
+
+    private val probeLocation = IntArray(2)
+
+    private fun readProbe(p: View) {
+        p.getLocationOnScreen(probeLocation)
+        val top = probeLocation[1]
+        if (top > 0 && !probeCalibrated) {
+            probeCalibrated = true
+            DiagnosticsLog.log("probe: calibrated (top=$top)")
+        }
+        val hidden = top == 0
+        if (probeCalibrated && hidden != probeSaysHidden) {
+            DiagnosticsLog.log("probe: status bar ${if (hidden) "hidden" else "shown"} (top=$top)")
+        }
+        probeSaysHidden = hidden
     }
 
     private fun screenWidth(): Int =
@@ -256,6 +285,16 @@ class SpeedOverlay(private val context: Context) {
     }
 
     companion object {
+        /** Why the overlay is hidden, or null if it should show. First match wins (it's what the log reports). */
+        fun hideReason(idle: Boolean, landscape: Boolean, insetsHidden: Boolean, probeHidden: Boolean): String? =
+            when {
+                idle -> "idle"
+                landscape -> "landscape"
+                insetsHidden -> "full screen (insets)"
+                probeHidden -> "full screen (probe)"
+                else -> null
+            }
+
         /** Android 12+ blocks touches through overlays more opaque than this. */
         private const val MAX_PASS_THROUGH_ALPHA = 0.8f
         private const val WIDEST = 999L * 1_024 * 1_024

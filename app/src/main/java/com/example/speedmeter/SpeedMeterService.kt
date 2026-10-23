@@ -99,8 +99,14 @@ class SpeedMeterService : Service() {
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_OFF -> pausePolling()
-                Intent.ACTION_SCREEN_ON -> resumePolling()
+                Intent.ACTION_SCREEN_OFF -> {
+                    DiagnosticsLog.log("screen off: paused")
+                    pausePolling()
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    DiagnosticsLog.log("screen on: resumed")
+                    resumePolling()
+                }
             }
         }
     }
@@ -128,12 +134,14 @@ class SpeedMeterService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            DiagnosticsLog.log("meter stopped from notification")
             AppPrefs.setMeterRunning(this, false)
             stopSelf()
             return START_NOT_STICKY
         }
 
         // A null intent means the system restarted us after killing the process (START_STICKY).
+        DiagnosticsLog.log(if (intent == null) "meter restarted by Android after a kill" else "meter started")
         AppPrefs.setMeterRunning(this, true)
         try {
             ServiceCompat.startForeground(
@@ -150,6 +158,7 @@ class SpeedMeterService : Service() {
             // Android 12+ can refuse a foreground start from the background (e.g. some sticky
             // restarts). Keep the flag set: the next boot or app open brings the meter back.
             Log.w("SpeedMeter", "Foreground start refused", e)
+            DiagnosticsLog.log("Android refused to start the meter: ${e.javaClass.simpleName}")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -165,6 +174,7 @@ class SpeedMeterService : Service() {
         handler.removeCallbacks(tick)
         polling = false
         unregisterReceiver(screenReceiver)
+        DiagnosticsLog.log("meter service stopped")
         AppPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(prefListener)
         overlay.hide()
         _state.value = null

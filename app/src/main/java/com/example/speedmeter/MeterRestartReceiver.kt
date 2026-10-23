@@ -19,6 +19,7 @@ class MeterRestartReceiver : BroadcastReceiver() {
             else -> return
         }
         if (!AppPrefs.meterRunning(context)) return
+        DiagnosticsLog.log("restarting meter after ${if (intent.action == Intent.ACTION_BOOT_COMPLETED) "reboot" else "update"}")
         try {
             SpeedMeterService.start(context)
         } catch (e: Exception) {

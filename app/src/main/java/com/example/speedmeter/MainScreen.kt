@@ -80,6 +80,8 @@ interface MainActions {
     fun installUpdate(state: UpdateState)
     fun openNotificationSettings()
     fun openInstallSettings()
+    fun allowBackgroundRunning()
+    fun clearDiagnostics()
 }
 
 @Composable
@@ -92,7 +94,8 @@ internal fun MainScreen(
     tileOffer: TileOffer,
     actions: MainActions,
     canDrawOverlays: Boolean = false,
-    overlayLog: List<String> = emptyList(),
+    diagnostics: List<String> = emptyList(),
+    backgroundUnrestricted: Boolean = true,
     currentVersion: String = BuildConfig.VERSION_NAME,
 ) {
     Column(
@@ -106,21 +109,26 @@ internal fun MainScreen(
     ) {
         Header(meter)
 
-        // In overlay mode notifications being off is the point, not a problem.
-        if (notificationsDenied && !settings.overlay) {
+        // Icon mode *is* a notification. In overlay mode, notifications off is the point.
+        if (notificationsDenied && !(settings.overlay && canDrawOverlays)) {
             ShadAlert(
-                title = "Notifications are off",
-                description = "The speed can't appear in the status bar until notifications are allowed.",
+                title = "Icon mode needs notifications",
+                description = "The status bar icon is a notification, so it disappears while Speed Meter's " +
+                    "notifications are off. Turn them back on, or use Overlay, which doesn't need them.",
                 destructive = true,
             ) {
                 ShadButton("Open settings", actions::openNotificationSettings, variant = ButtonVariant.Outline)
+                if (!settings.overlay) {
+                    ShadButton("Use overlay", { actions.setOverlay(true) }, variant = ButtonVariant.Outline)
+                }
             }
         }
 
         MeterCard(meter, settings.unit, actions)
         UpdateCard(update, canInstallUpdates, currentVersion, actions)
-        DisplayCard(settings, canDrawOverlays, overlayLog, actions)
-        AppCard(update, settings, tileOffer, currentVersion, actions)
+        DisplayCard(settings, canDrawOverlays, actions)
+        AppCard(update, settings, tileOffer, backgroundUnrestricted, currentVersion, actions)
+        DiagnosticsCard(diagnostics, actions)
     }
 }
 
@@ -272,7 +280,6 @@ private fun FieldLabel(title: String, description: String) {
 private fun DisplayCard(
     settings: UiSettings,
     canDrawOverlays: Boolean,
-    overlayLog: List<String>,
     actions: MainActions,
 ) {
     ShadCard {
@@ -327,8 +334,6 @@ private fun DisplayCard(
                 ) {
                     ShadButton("Notification settings", actions::openNotificationSettings, variant = ButtonVariant.Outline)
                 }
-                Spacer(Modifier.height(16.dp))
-                DetectionLog(overlayLog)
             }
         }
 
@@ -358,27 +363,28 @@ private fun DisplayCard(
     }
 }
 
-/** Spike-only readout of what full-screen detection saw, so results can be reported from the phone. */
+/** Spike-only: what the meter and overlay did and why, newest last, so results can be reported from the phone. */
 @Composable
-private fun DetectionLog(lines: List<String>) {
+private fun DiagnosticsCard(lines: List<String>, actions: MainActions) {
     val c = Shad.colors
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(c.muted, RoundedCornerShape(ShadRadius.lg))
-            .padding(12.dp),
-    ) {
-        Text("Full-screen detection log", style = Shad.type.small, color = c.foreground)
-        Spacer(Modifier.height(2.dp))
+    ShadCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = 16.dp)) {
+                CardHeader(
+                    "Diagnostics",
+                    "Testing aid. If something stops working, screenshot this. It survives restarts.",
+                )
+            }
+            if (lines.isNotEmpty()) ShadButton("Clear", actions::clearDiagnostics, variant = ButtonVariant.Ghost)
+        }
+        Spacer(Modifier.height(12.dp))
         Text(
-            "Testing aid. If the overlay stays up during full-screen video, screenshot this afterwards.",
-            style = Shad.type.muted,
-            color = c.mutedForeground,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            if (lines.isEmpty()) "No events yet." else lines.joinToString("\n"),
-            style = Shad.type.muted.copy(fontFamily = GeistMono, fontSize = 12.sp),
+            if (lines.isEmpty()) "No events yet." else lines.takeLast(15).joinToString("\n"),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(c.muted, RoundedCornerShape(ShadRadius.lg))
+                .padding(12.dp),
+            style = Shad.type.muted.copy(fontFamily = GeistMono, fontSize = 11.sp, lineHeight = 16.sp),
             color = c.foreground,
         )
     }
@@ -392,6 +398,7 @@ private fun AppCard(
     update: UpdateState,
     settings: UiSettings,
     tileOffer: TileOffer,
+    backgroundUnrestricted: Boolean,
     currentVersion: String,
     actions: MainActions,
 ) {
@@ -404,6 +411,32 @@ private fun AppCard(
             checked = settings.autoUpdate,
             onCheckedChange = actions::setAutoUpdate,
         )
+        ShadSeparator()
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f).padding(end = 16.dp)) {
+                Text("Background running", style = Shad.type.small, color = Shad.colors.foreground)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (backgroundUnrestricted) {
+                        "Battery optimisation is off for Speed Meter, so Android won't stop it to save power."
+                    } else {
+                        "Battery optimisation can stop the meter after a while, especially on Samsung."
+                    },
+                    style = Shad.type.muted,
+                    color = Shad.colors.mutedForeground,
+                )
+            }
+            if (backgroundUnrestricted) {
+                ShadBadge("Allowed", BadgeVariant.Secondary)
+            } else {
+                ShadButton("Allow", actions::allowBackgroundRunning, variant = ButtonVariant.Outline)
+            }
+        }
         ShadSeparator()
         Row(
             Modifier

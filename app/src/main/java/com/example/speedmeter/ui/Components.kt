@@ -7,11 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -209,12 +210,13 @@ fun ShadProgress(progress: Float?, modifier: Modifier = Modifier) {
 }
 
 /** shadcn Alert. Destructive keeps the text in the token colour, which passes AA here. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShadAlert(
     title: String,
     description: String,
     destructive: Boolean = false,
-    actions: @Composable RowScope.() -> Unit = {},
+    actions: @Composable () -> Unit = {},
 ) {
     val c = Shad.colors
     val accent = if (destructive) c.destructive else c.foreground
@@ -227,6 +229,11 @@ fun ShadAlert(
         Text(title, style = Shad.type.small, color = accent)
         Spacer(Modifier.height(4.dp))
         Text(description, style = Shad.type.muted, color = if (destructive) accent else c.mutedForeground)
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), content = actions)
+        // Wraps so two buttons still fit at large text sizes.
+        FlowRow(
+            Modifier.padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) { actions() }
     }
 }

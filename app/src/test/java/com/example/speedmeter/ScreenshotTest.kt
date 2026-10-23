@@ -20,7 +20,7 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 // Plain Application: SpeedMeterApp would start WorkManager, which isn't set up under Robolectric.
-@Config(sdk = [35], application = android.app.Application::class, qualifiers = "w393dp-h1700dp-xxhdpi")
+@Config(sdk = [35], application = android.app.Application::class, qualifiers = "w393dp-h2300dp-xxhdpi")
 class ScreenshotTest {
 
     private val update = UpdateInfo(14, "0.1.14", "a1b2c3d", "", "")
@@ -43,6 +43,8 @@ class ScreenshotTest {
         override fun installUpdate(state: UpdateState) {}
         override fun openNotificationSettings() {}
         override fun openInstallSettings() {}
+        override fun allowBackgroundRunning() {}
+        override fun clearDiagnostics() {}
     }
 
     private fun shot(
@@ -54,7 +56,8 @@ class ScreenshotTest {
         settings: UiSettings = UiSettings(),
         tileOffer: TileOffer = TileOffer.CanAdd,
         canDrawOverlays: Boolean = false,
-        overlayLog: List<String> = emptyList(),
+        diagnostics: List<String> = emptyList(),
+        backgroundUnrestricted: Boolean = true,
     ) = captureRoboImage(roborazziOptions = options) {
         ShadTheme(dark = dark) {
             MainScreen(
@@ -66,7 +69,8 @@ class ScreenshotTest {
                 tileOffer = tileOffer,
                 actions = noop,
                 canDrawOverlays = canDrawOverlays,
-                overlayLog = overlayLog,
+                diagnostics = diagnostics,
+                backgroundUnrestricted = backgroundUnrestricted,
                 currentVersion = "0.1.10",
             )
         }
@@ -112,13 +116,15 @@ class ScreenshotTest {
         notificationsDenied = true,
         settings = UiSettings(overlay = true),
         canDrawOverlays = true,
-        overlayLog = listOf(
-            "14:02:11  overlay shown",
-            "14:02:11  orientation: portrait",
-            "14:02:12  probe: calibrated (top=96)",
-            "14:05:40  orientation: landscape",
-            "14:05:40  probe: status bar hidden (top=0)",
+        diagnostics = listOf(
+            "Oct 23 14:02:11  meter started",
+            "Oct 23 14:02:11  overlay shown",
+            "Oct 23 14:02:12  probe: calibrated (top=96)",
+            "Oct 23 14:02:12  overlay visible",
+            "Oct 23 14:05:40  orientation: landscape",
+            "Oct 23 14:05:40  overlay hidden: landscape",
         ),
+        backgroundUnrestricted = false,
     )
 
     /** WCAG 1.4.4: text must survive 200% scaling without clipping or overlap. */

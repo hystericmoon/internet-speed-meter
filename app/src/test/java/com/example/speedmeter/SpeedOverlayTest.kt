@@ -24,4 +24,13 @@ class SpeedOverlayTest {
         assertEquals("↓9.6M ↑287K", SpeedOverlay.format(1_200_000, 35_840, SpeedUnit.BITS))
         assertEquals("↓1.2M ↑35K", SpeedOverlay.format(1_258_291, 35_840, SpeedUnit.BYTES))
     }
+
+    @Test
+    fun `hide reason reports the first matching cause`() {
+        assertEquals(null, SpeedOverlay.hideReason(idle = false, landscape = false, insetsHidden = false, probeHidden = false))
+        assertEquals("idle", SpeedOverlay.hideReason(idle = true, landscape = true, insetsHidden = true, probeHidden = true))
+        assertEquals("landscape", SpeedOverlay.hideReason(idle = false, landscape = true, insetsHidden = true, probeHidden = false))
+        assertEquals("full screen (insets)", SpeedOverlay.hideReason(idle = false, landscape = false, insetsHidden = true, probeHidden = true))
+        assertEquals("full screen (probe)", SpeedOverlay.hideReason(idle = false, landscape = false, insetsHidden = false, probeHidden = true))
+    }
 }

@@ -92,6 +92,17 @@ every notification is also listed in the panel. Overlay mode works around that:
 Turning notifications off also silences update prompts. Updates that can install
 silently still do. Anything that needs a tap waits until you open the app.
 
+**Icon mode needs notifications.** The status bar icon *is* the notification, so it
+disappears while notifications are off. The app warns about this, whether they were turned off
+in the app or in system settings, and offers to switch to Overlay.
+
+**"Hide when idle" applies to the overlay too.** When traffic drops below the threshold
+the overlay disappears until traffic picks up again. Choose *Never hide* to keep it up.
+
+**Samsung:** on App card → **Background running → Allow** so battery optimisation doesn't
+stop the meter. If it still stops, also add Speed Meter to *Settings → Battery →
+Background usage limits → Never sleeping apps*.
+
 ### Adding the Quick Settings tile
 
 - **Android 13+**: App → **App** card → **Quick Settings tile → Add**. The system asks to confirm.
@@ -127,6 +138,7 @@ disappears, with no gap.
 | Setting | Default | Notes |
 |---|---|---|
 | **Automatic updates** | On | Checks every 6 h on Wi-Fi with battery not low, then downloads and installs. Opening the app always checks, on any network. |
+| **Background running** | – | Shows whether battery optimisation is off for Speed Meter; **Allow** asks Android to exempt it. |
 | **Quick Settings tile** | – | Adds the tile (Android 13+) or explains how to add it by hand. |
 | **Check now** | – | Checks for an update immediately. |
 
@@ -179,8 +191,22 @@ over full-screen video. The overlay now hides if **any** of these says "full scr
 | **Insets** | Status-bar visibility reported to the overlay window | Works on stock Android; failed on One UI |
 | **Probe window** | A 1px invisible overlay that *fits* the status bar: it starts below the bar, and moves to y = 0 when the bar is hidden. It only counts after it's been seen below a visible bar, so a probe that doesn't move can't hide the overlay by mistake | Untested on device |
 
-The app shows a **Full-screen detection log** under the overlay settings. It's a testing
-aid listing which signal fired and when, so results can be reported from the phone.
+All signals are also **re-checked every second**, not only when Android sends an event,
+so a missed or stale event (e.g. around lock/unlock) can't keep the overlay hidden.
+
+### Diagnostics
+
+A **Diagnostics** card at the bottom of the app is a testing aid. It keeps the last 40
+events and survives restarts:
+
+- meter started / stopped / restarted by Android after a kill / refused to start
+- app process started (a new one without a stop before it means Android killed the app)
+- screen off / on
+- overlay shown / removed, and **every time it hides or reappears, with the reason**:
+  `idle`, `landscape`, `full screen (insets)` or `full screen (probe)`
+- probe calibration and insets changes
+
+If something stops working, a screenshot of this card usually says why.
 - **Staying alive.** `START_STICKY` after a kill. `MeterRestartReceiver` restarts it on
   `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` (both exempt from Android's background-start
   limits). If Android still refuses, opening the app restarts it.
@@ -281,7 +307,9 @@ The spike's open questions can only be answered on real hardware. Please report
 - [ ] **Screen off/on:** after unlocking, does the meter resume without a false spike?
 - [x] **Overlay: visible?** yes on Samsung A55.
 - [ ] **Overlay: position:** can you find a spot that clears the clock, icons and camera? Does it hold after rotating?
-- [ ] **Overlay: full screen:** the first version stayed up over full-screen video on a Samsung A55. Retest with a landscape video, then a portrait full-screen app (Reels, Shorts), and screenshot the detection log afterwards.
+- [x] **Overlay: full screen (landscape):** hides on Samsung A55 since *Hide in landscape*.
+- [ ] **Overlay: full screen (portrait):** Reels/Shorts. Depends on the probe; screenshot Diagnostics afterwards.
+- [ ] **Overlay: stays up:** on 0.1.7 it "worked for a while, then didn't" (Samsung A55). Retest on 0.1.8+, and when it vanishes screenshot **Diagnostics**. It names the cause (idle, a detection signal, or Android stopping the app).
 - [ ] **Overlay: panel:** on Samsung A55 it moved into "Other notifications". Still to confirm: is that with Speed Meter notifications fully **off**?
 - [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
 - [ ] **Units:** switch Mbps ↔ MB/s. Do the app, notification and icon all follow within a second?
@@ -305,13 +333,13 @@ Requirements: JDK 17+, Android SDK 35.
 ./gradlew lintDebug                # Android lint
 ```
 
-### Tests (35)
+### Tests (36)
 
 | Test | Covers |
 |---|---|
 | `SpeedFormatTest` | Mbps/MB/s conversion, rounding, unit switching, 4-character limit for the icon, threshold labels |
 | `RateSamplerTest` | Rate maths, counter resets, 5 s idle hiding, "never hide", changing the threshold at runtime, screen-off reset |
-| `SpeedOverlayTest` | Overlay position maths (always fully on screen), one-line text format |
+| `SpeedOverlayTest` | Overlay position maths (always fully on screen), one-line text format, hide-reason priority |
 | `UpdateInfoTest` | Parsing `version.json`, only higher versions count as updates |
 | `ScreenshotTest` | 11 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, 200% font |
 
@@ -352,6 +380,7 @@ app/src/main/java/com/example/speedmeter/
 ├── SpeedFormat.kt            Mbps / MB/s formatting, compact icon form
 ├── SpeedIconRenderer.kt      draws the two-line status bar bitmap
 ├── SpeedOverlay.kt           overlay mode: floating text window over the status bar
+├── DiagnosticsLog.kt         persisted testing log shown in the app (spike only)
 ├── SpeedMeterTileService.kt  Quick Settings tile
 ├── MeterRestartReceiver.kt   restart after reboot / self-update
 ├── AppPrefs.kt               persisted settings, IdleThreshold presets
@@ -391,7 +420,8 @@ app/src/main/java/com/example/speedmeter/
 - **Restart can be refused.** Some Android versions block a foreground-service restart
   from the background after a kill; the meter then comes back on the next boot or app
   open. Aggressive OEM battery savers (Xiaomi, Huawei, some Samsung modes) may stop it
-  outright. Exclude Speed Meter from battery optimisation if that happens.
+  outright. Use **Background running → Allow** in the app, and on Samsung also
+  *Never sleeping apps*.
 - **Silent updates vary.** Depends on Android version and manufacturer; some phones ask
   for confirmation every time.
 - **Dismissable notification.** On Android 14+ users can swipe the notification away; it

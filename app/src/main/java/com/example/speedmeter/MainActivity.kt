@@ -1,6 +1,7 @@
 package com.example.speedmeter
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.speedmeter.ui.ShadTheme
 import com.example.speedmeter.update.UpdateManager
@@ -35,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private var settings by mutableStateOf(UiSettings())
     private var tileOffer by mutableStateOf(TileOffer.Manual)
     private var canDrawOverlays by mutableStateOf(false)
+    private var backgroundUnrestricted by mutableStateOf(true)
 
     private val requestNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -61,7 +65,7 @@ class MainActivity : ComponentActivity() {
             ShadTheme {
                 val meter by SpeedMeterService.state.collectAsStateWithLifecycle()
                 val update by UpdateManager.state.collectAsStateWithLifecycle()
-                val overlayLog by OverlayDiagnostics.events.collectAsStateWithLifecycle()
+                val diagnostics by DiagnosticsLog.events.collectAsStateWithLifecycle()
                 MainScreen(
                     meter = meter,
                     update = update,
@@ -71,7 +75,8 @@ class MainActivity : ComponentActivity() {
                     tileOffer = tileOffer,
                     actions = actions,
                     canDrawOverlays = canDrawOverlays,
-                    overlayLog = overlayLog,
+                    diagnostics = diagnostics,
+                    backgroundUnrestricted = backgroundUnrestricted,
                 )
             }
         }
@@ -96,7 +101,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Pick up grants made in system settings while we were in the background.
-        if (notificationsDenied && hasNotificationPermission()) notificationsDenied = false
+        // Covers the in-app prompt *and* switching them off in system settings.
+        notificationsDenied = !NotificationManagerCompat.from(this).areNotificationsEnabled()
+        backgroundUnrestricted = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         canInstallUpdates = packageManager.canRequestPackageInstalls()
         canDrawOverlays = Settings.canDrawOverlays(this)
     }
@@ -151,6 +158,19 @@ class MainActivity : ComponentActivity() {
             settings = settings.copy(overlayHideInLandscape = enabled)
             AppPrefs.setOverlayHideInLandscape(this@MainActivity, enabled)
         }
+
+        @SuppressLint("BatteryLife") // sideloaded; the meter must run continuously to be useful
+        override fun allowBackgroundRunning() {
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
+                )
+            } catch (e: Exception) {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+
+        override fun clearDiagnostics() = DiagnosticsLog.clear()
 
         override fun openOverlaySettings() {
             startActivity(
