@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -15,6 +16,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -110,4 +115,54 @@ fun <T> ShadRadioGroup(
             }
         }
     }
+}
+
+/**
+ * shadcn Slider: 6dp pill track, primary range, 20dp round thumb with a primary ring.
+ * Material supplies the drag handling, 48dp touch height and the adjustable a11y action;
+ * [stateLabel] is what TalkBack reads.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ShadSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    stateLabel: String,
+    modifier: Modifier = Modifier,
+) {
+    val c = Shad.colors
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { stateDescription = stateLabel },
+        thumb = {
+            Box(
+                Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(c.background)
+                    .border(2.dp, c.primary, CircleShape),
+            )
+        },
+        track = { state ->
+            val range = state.valueRange
+            val fraction = ((state.value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(c.secondary),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(fraction)
+                        .height(6.dp)
+                        .background(c.primary),
+                )
+            }
+        },
+    )
 }

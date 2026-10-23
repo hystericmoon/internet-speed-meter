@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
     private var canInstallUpdates by mutableStateOf(false)
     private var settings by mutableStateOf(UiSettings())
     private var tileOffer by mutableStateOf(TileOffer.Manual)
+    private var canDrawOverlays by mutableStateOf(false)
 
     private val requestNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -50,6 +51,8 @@ class MainActivity : ComponentActivity() {
             idleThreshold = AppPrefs.idleThreshold(this),
             transparentFallback = AppPrefs.transparentIconFallback(this),
             autoUpdate = AppPrefs.autoUpdate(this),
+            overlay = AppPrefs.overlay(this),
+            overlayPosition = AppPrefs.overlayPosition(this),
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) tileOffer = TileOffer.CanAdd
         if (savedInstanceState == null) handleIntent(intent)
@@ -66,6 +69,7 @@ class MainActivity : ComponentActivity() {
                     canInstallUpdates = canInstallUpdates,
                     tileOffer = tileOffer,
                     actions = actions,
+                    canDrawOverlays = canDrawOverlays,
                 )
             }
         }
@@ -82,7 +86,7 @@ class MainActivity : ComponentActivity() {
         if (UpdateManager.state.value == UpdateState.Idle) UpdateManager.check()
         // The user left the meter on but Android stopped it (e.g. a refused sticky restart):
         // bring it back now that we're in the foreground and allowed to.
-        if (AppPrefs.meterRunning(this) && SpeedMeterService.state.value == null && hasNotificationPermission()) {
+        if (AppPrefs.meterRunning(this) && SpeedMeterService.state.value == null && canStartWithoutPrompt()) {
             SpeedMeterService.start(this)
         }
     }
@@ -92,6 +96,7 @@ class MainActivity : ComponentActivity() {
         // Pick up grants made in system settings while we were in the background.
         if (notificationsDenied && hasNotificationPermission()) notificationsDenied = false
         canInstallUpdates = packageManager.canRequestPackageInstalls()
+        canDrawOverlays = Settings.canDrawOverlays(this)
     }
 
     override fun onStop() {
@@ -108,7 +113,7 @@ class MainActivity : ComponentActivity() {
 
     private val actions = object : MainActions {
         override fun start() {
-            if (hasNotificationPermission()) {
+            if (canStartWithoutPrompt()) {
                 SpeedMeterService.start(this@MainActivity)
             } else {
                 requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -130,6 +135,24 @@ class MainActivity : ComponentActivity() {
         override fun setTransparentFallback(enabled: Boolean) {
             settings = settings.copy(transparentFallback = enabled)
             AppPrefs.setTransparentIconFallback(this@MainActivity, enabled)
+        }
+
+        override fun setOverlay(enabled: Boolean) {
+            settings = settings.copy(overlay = enabled)
+            AppPrefs.setOverlay(this@MainActivity, enabled)
+            // Ask right away; the card also offers "Allow" if they back out.
+            if (enabled && !Settings.canDrawOverlays(this@MainActivity)) openOverlaySettings()
+        }
+
+        override fun setOverlayPosition(fraction: Float) {
+            settings = settings.copy(overlayPosition = fraction)
+            AppPrefs.setOverlayPosition(this@MainActivity, fraction)
+        }
+
+        override fun openOverlaySettings() {
+            startActivity(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+            )
         }
 
         override fun setAutoUpdate(enabled: Boolean) {
@@ -178,6 +201,13 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+
+    /**
+     * Icon mode needs notifications (the icon *is* the notification). Overlay mode doesn't:
+     * turning them off is how the user keeps it out of the panel, so never nag for them there.
+     */
+    private fun canStartWithoutPrompt(): Boolean =
+        hasNotificationPermission() || AppPrefs.overlayActive(this)
 
     private fun hasNotificationPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

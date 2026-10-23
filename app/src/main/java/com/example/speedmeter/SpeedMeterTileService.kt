@@ -39,10 +39,11 @@ class SpeedMeterTileService : TileService() {
             SpeedMeterService.stop(this)
             return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        if (!AppPrefs.overlayActive(this) &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
-            // The permission prompt needs an activity.
+            // Icon mode needs the notification permission, and its prompt needs an activity.
             openAppAndStart()
             return
         }

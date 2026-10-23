@@ -19,6 +19,8 @@ object AppPrefs {
     private const val KEY_METER_RUNNING = "meter_running"
     private const val KEY_SPEED_UNIT = "speed_unit"
     private const val KEY_IDLE_THRESHOLD = "idle_threshold"
+    const val KEY_OVERLAY = "overlay"
+    const val KEY_OVERLAY_POSITION = "overlay_position"
 
     /**
      * Spike flag. When idle, hide by drawing a fully transparent small icon on the visible
@@ -65,9 +67,32 @@ object AppPrefs {
         prefs(context).edit().putString(KEY_IDLE_THRESHOLD, threshold.name).apply()
     }
 
+    /**
+     * User wants the status bar overlay instead of the notification icon. Only takes effect
+     * once "Display over other apps" is granted; see [overlayActive].
+     */
+    fun overlay(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_OVERLAY, false)
+
+    fun setOverlay(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_OVERLAY, enabled).apply()
+    }
+
+    fun overlayActive(context: Context): Boolean =
+        overlay(context) && android.provider.Settings.canDrawOverlays(context)
+
+    /** Horizontal position, 0 = left edge, 1 = right edge. Default sits left of a centre cutout. */
+    fun overlayPosition(context: Context): Float =
+        prefs(context).getFloat(KEY_OVERLAY_POSITION, 0.3f)
+
+    fun setOverlayPosition(context: Context, fraction: Float) {
+        prefs(context).edit().putFloat(KEY_OVERLAY_POSITION, fraction).apply()
+    }
+
+    /** For components that react to settings live (the service moves the overlay as you drag). */
+    fun prefs(context: Context): android.content.SharedPreferences =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T =
         enumValues<T>().firstOrNull { it.name == name } ?: default
-
-    private fun prefs(context: Context) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

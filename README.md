@@ -1,14 +1,21 @@
 # Speed Meter
 
-An Android app that shows your live download and upload speed **as the status bar icon**,
+An Android app that shows your live download and upload speed **in the status bar**,
 so it's always visible next to the clock and battery. It hides itself when the network
 is idle, and keeps itself up to date from this repository's builds.
 
+Two display modes:
+
+- **Icon** (default): the speed is the notification's status bar icon. Works on every
+  phone, but Android also lists it in the notification panel.
+- **Overlay** (experimental): the app draws the speed over the status bar itself, so it
+  can stay out of the notification panel entirely.
+
 Kotlin · Jetpack Compose · minSdk 26 (Android 8.0) · targetSdk 35 (Android 15)
 
-| Running, update downloading | Dark, first update needs permission | Notifications denied |
+| Icon mode, update downloading | Overlay mode (dark) | Overlay needs permission |
 |---|---|---|
-| ![](app/src/test/screenshots/com.example.speedmeter.ScreenshotTest.runningDownloadingUpdate.png) | ![](app/src/test/screenshots/com.example.speedmeter.ScreenshotTest.runningDarkNeedsInstallPermission.png) | ![](app/src/test/screenshots/com.example.speedmeter.ScreenshotTest.stoppedNotificationsDenied.png) |
+| ![](app/src/test/screenshots/com.example.speedmeter.ScreenshotTest.runningDownloadingUpdate.png) | ![](app/src/test/screenshots/com.example.speedmeter.ScreenshotTest.overlayActiveDark.png) | ![](app/src/test/screenshots/com.example.speedmeter.ScreenshotTest.overlayNeedsPermission.png) |
 
 These images are the screenshot-test baselines, so they always match the current code.
 
@@ -49,8 +56,9 @@ You only do this once. After that the app updates itself (see [Auto-update](#aut
 | Where | What you can do |
 |---|---|
 | **App** | Start/stop the meter, see live speed, change settings, install updates |
-| **Status bar** | Two lines: download on top, upload below, e.g. `9.6M` over `287K` |
-| **Notification** | Full speeds (e.g. `↓ 9.6 Mbps   ↑ 287 kbps`) and a **Stop** button. Tap it to open the app |
+| **Status bar, icon mode** | Two lines: download on top, upload below, e.g. `9.6M` over `287K` |
+| **Status bar, overlay mode** | One line drawn over the bar, e.g. `↓9.6M ↑287K`, at the position you choose |
+| **Notification** | Icon mode: full speeds (e.g. `↓ 9.6 Mbps   ↑ 287 kbps`) and a **Stop** button. Overlay mode: a static, minimum-priority entry, or nothing at all (see below). Tap it to open the app |
 | **Quick Settings tile** | Tap to start/stop. Its subtitle shows live download speed while the shade is open |
 
 The status badge in the app always spells out the state:
@@ -66,6 +74,24 @@ The status badge in the app always spells out the state:
 Android kills it, and after an update. Only **Stop** (in the app, notification or tile)
 turns it off for good.
 
+### Keeping it out of the notification panel (overlay mode)
+
+On Android an app can only put an icon in the status bar through a notification, and
+every notification is also listed in the panel. Overlay mode works around that:
+
+1. **Display → Show speed as → Overlay.** Android asks you to allow *Display over other
+   apps* for Speed Meter. Until you do, the app keeps using the icon.
+2. **Position:** drag the slider until the overlay clears your clock, notification
+   icons and camera cutout. The real overlay moves as you drag.
+3. **Remove the panel entry:** tap **Notification settings** and turn notifications off
+   for Speed Meter. On **Android 13 and later** the meter then disappears from the
+   notification panel and keeps running. It's only listed under *Active apps* at the
+   bottom of Quick Settings, which is where Android lists every running service.
+   On Android 12 and older, Android may show its own "running" notice instead.
+
+Turning notifications off also silences update prompts. Updates that can install
+silently still do. Anything that needs a tap waits until you open the app.
+
 ### Adding the Quick Settings tile
 
 - **Android 13+**: App → **App** card → **Quick Settings tile → Add**. The system asks to confirm.
@@ -80,15 +106,17 @@ turns it off for good.
 
 | Setting | Options | Default | Notes |
 |---|---|---|---|
+| **Show speed as** | Icon · Overlay | **Icon** | See [display modes](#keeping-it-out-of-the-notification-panel-overlay-mode). Overlay needs *Display over other apps*. |
+| **Position** | Slider, left → right | 30% from left | Overlay only. Moves the overlay live. |
 | **Units** | Mbps · MB/s | **Mbps** | Mbps (megabits, decimal) is how ISPs and speed tests quote speed. MB/s (megabytes, binary) is what file managers and downloads show. 1 MB/s ≈ 8.4 Mbps. |
 | **Hide when idle** | Never hide · Below 8 kbps · Below 100 kbps · Below 1 Mbps | **Below 8 kbps** | Hides from the status bar after **5 seconds** below the threshold (download + upload combined). Comes back the moment traffic rises above it. Raise it if background sync keeps the icon flickering on. |
-| **Transparent-icon fallback** | On · Off | Off | How the meter hides (see below). Only shown when hiding is on. |
+| **Transparent-icon fallback** | On · Off | Off | How the icon hides (see below). Only shown in icon mode with hiding on. In overlay mode the overlay simply disappears. |
 
 **Why Mbps by default:** people check the meter against their plan ("100 Mbps") and
 speed-test results. Showing MB/s would read 8× smaller than they expect. This follows
 Nielsen's *match between the system and the real world* heuristic.
 
-**Two ways to hide**, which is what this spike is testing:
+**Two ways to hide the icon**, which is what this spike is testing:
 
 - **Off (default):** the notification moves to a *minimum-importance* channel, which
   Android keeps out of the status bar. Clean, but some phones ignore it for
@@ -118,6 +146,7 @@ Nielsen's *match between the system and the real world* heuristic.
         ├─ SpeedIconRenderer → 24dp bitmap, two lines → notification small icon (status bar)
         ├─ notification title: full speeds, Stop action
         ├─ idle? → repost on MIN channel, or transparent icon (fallback)
+        ├─ overlay mode → SpeedOverlay window over the status bar (notification goes static, MIN)
         └─ StateFlow ──► MainActivity (Compose UI) and the Quick Settings tile
 ```
 
@@ -133,6 +162,13 @@ Nielsen's *match between the system and the real world* heuristic.
   itself, so the bitmap is white on transparent. Text is squeezed horizontally if a
   value is too wide. Every value is at most 4 characters (`0.0K`, `512K`, `9.6M`, `34M`).
 - **Low churn.** The notification is only reposted when something visible changes.
+- **Overlay mode.** `SpeedOverlay` adds a non-touchable `TYPE_APPLICATION_OVERLAY`
+  window at the top of the screen, sized to the status bar height and laid out into the
+  cutout area. It has a fixed width so it doesn't jitter, and white text with a soft
+  shadow so it reads on dark and light bars. It goes invisible when the meter is idle
+  and when a full-screen app (video, games) hides the status bar, and re-lays out on
+  rotation. Its alpha is capped at 0.8, Android 12's limit for letting touches pass
+  through overlays, so it can never block taps.
 - **Staying alive.** `START_STICKY` after a kill. `MeterRestartReceiver` restarts it on
   `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` (both exempt from Android's background-start
   limits). If Android still refuses, opening the app restarts it.
@@ -199,6 +235,7 @@ recreated in Compose instead, using the same token names so it maps 1:1 to the w
 | `ShadSwitch`, `SettingRow` | 44×24 track. The whole row is the toggle |
 | `ShadToggleGroup` | Tabs-style segmented control for 2–3 options (Units) |
 | `ShadRadioGroup` | Vertical radio list (Hide when idle) |
+| `ShadSlider` | 6dp pill track, 20dp ringed thumb (overlay position) |
 | `ShadProgress` | 8dp pill, determinate or indeterminate |
 | `ShadAlert` | default · destructive |
 | `ShadSeparator` | 1dp `border` line |
@@ -215,6 +252,7 @@ intentionally off: shadcn is deliberately neutral.
 | **Contrast** | Muted text `#71717A` on white = 4.8:1 (AA). shadcn's default red `#EF4444` is 3.8:1 and fails AA for text, so destructive is darkened to `#DC2626` (4.8:1) in light mode and `#F87171` in dark. Radio outlines use `mutedForeground` to meet the 3:1 non-text contrast rule. |
 | **Touch targets** | Every control is at least 48dp, including segments and radio rows. |
 | **Screen readers** | Each speed reads as one phrase ("Download 9.6 Mbps"). Setting rows are a single switch / radio node. Groups use `selectableGroup`. Update status and progress are live regions. The title is a heading. |
+| **Overlay** | The overlay is hidden from TalkBack: it's decoration over system UI and can't be focused. The same speeds are announced in the app and on the Quick Settings tile. |
 | **Not colour-only** | Status is always text (Running / Idle / Paused / Stopped). |
 | **Text scaling** | Tested at 200% (WCAG 1.4.4): above 150%, download and upload stack vertically so values can't collide. |
 | **Still to verify** | TalkBack on a real device; the status-bar icon itself has no text alternative beyond the notification content. |
@@ -230,6 +268,11 @@ The spike's open questions can only be answered on real hardware. Please report
 - [ ] **Idle hiding (default):** stay idle 5 s. Does the icon disappear, or does a "running" indicator appear instead?
 - [ ] **Transparent fallback:** turn it on and go idle. How big is the gap?
 - [ ] **Screen off/on:** after unlocking, does the meter resume without a false spike?
+- [ ] **Overlay: visible?** switch to Overlay. Can you see the text in the status bar, or is it hidden behind the bar?
+- [ ] **Overlay: position:** can you find a spot that clears the clock, icons and camera? Does it hold after rotating?
+- [ ] **Overlay: full screen:** play a full-screen video. Does the overlay disappear with the status bar, and come back after?
+- [ ] **Overlay: panel:** turn Speed Meter notifications off. Is it gone from the panel while the speed keeps updating?
+- [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
 - [ ] **Units:** switch Mbps ↔ MB/s. Do the app, notification and icon all follow within a second?
 - [ ] **Threshold:** pick "Below 1 Mbps" while streaming a little. Does it hide as expected?
 - [ ] **Reboot:** with the meter on, restart the phone. Does it come back?
@@ -251,14 +294,15 @@ Requirements: JDK 17+, Android SDK 35.
 ./gradlew lintDebug                # Android lint
 ```
 
-### Tests (30)
+### Tests (35)
 
 | Test | Covers |
 |---|---|
 | `SpeedFormatTest` | Mbps/MB/s conversion, rounding, unit switching, 4-character limit for the icon, threshold labels |
 | `RateSamplerTest` | Rate maths, counter resets, 5 s idle hiding, "never hide", changing the threshold at runtime, screen-off reset |
+| `SpeedOverlayTest` | Overlay position maths (always fully on screen), one-line text format |
 | `UpdateInfoTest` | Parsing `version.json`, only higher versions count as updates |
-| `ScreenshotTest` | 9 states of the main screen: light/dark, errors, update flow, MB/s, tile states, 200% font |
+| `ScreenshotTest` | 11 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, 200% font |
 
 Screenshot tests run on the JVM (Robolectric + Roborazzi), no emulator needed.
 Baselines are in `app/src/test/screenshots/`.
@@ -296,6 +340,7 @@ app/src/main/java/com/example/speedmeter/
 ├── RateSampler.kt            pure rate + idle logic (unit-tested)
 ├── SpeedFormat.kt            Mbps / MB/s formatting, compact icon form
 ├── SpeedIconRenderer.kt      draws the two-line status bar bitmap
+├── SpeedOverlay.kt           overlay mode: floating text window over the status bar
 ├── SpeedMeterTileService.kt  Quick Settings tile
 ├── MeterRestartReceiver.kt   restart after reboot / self-update
 ├── AppPrefs.kt               persisted settings, IdleThreshold presets
@@ -305,7 +350,7 @@ app/src/main/java/com/example/speedmeter/
 ├── ui/
 │   ├── Theme.kt              shadcn tokens, radius, Geist type
 │   ├── Components.kt         Button, Card, Badge, Switch, Progress, Alert, Separator
-│   └── Selection.kt          ToggleGroup, RadioGroup
+│   └── Selection.kt          ToggleGroup, RadioGroup, Slider
 └── update/
     ├── UpdateInfo.kt         version.json model
     ├── UpdateInstaller.kt    fetch, download + SHA-256, PackageInstaller
@@ -322,6 +367,14 @@ app/src/main/java/com/example/speedmeter/
 - **Final hiding method is undecided.** Both methods stay until device testing shows
   which one works (see [Testing on a device](#testing-on-a-device)). If neither does,
   the fallback plan is to never hide and show a dimmed `0K` instead.
+- **Overlay visibility varies by phone.** Since Android 12, app overlays are drawn
+  *below* the status bar layer. On the usual transparent bar the text shows through; a
+  solid-coloured bar (some apps, some OEM skins) covers it. Full-screen detection relies
+  on status-bar inset changes reaching the overlay window, which device testing needs to
+  confirm. Drawing *above* the status bar would need an accessibility service, which
+  isn't appropriate for this and is rejected by Google Play.
+- **Overlay text colour is fixed** (white with a shadow). Android doesn't tell other
+  apps whether the status bar is currently using light or dark icons.
 - **Total device traffic.** `TrafficStats` totals include all apps and interfaces
   (Wi-Fi, mobile, VPN, tethering), so VPN traffic may be counted twice on some devices.
 - **Restart can be refused.** Some Android versions block a foreground-service restart

@@ -34,6 +34,9 @@ class ScreenshotTest {
         override fun setUnit(unit: SpeedUnit) {}
         override fun setIdleThreshold(threshold: IdleThreshold) {}
         override fun setTransparentFallback(enabled: Boolean) {}
+        override fun setOverlay(enabled: Boolean) {}
+        override fun setOverlayPosition(fraction: Float) {}
+        override fun openOverlaySettings() {}
         override fun setAutoUpdate(enabled: Boolean) {}
         override fun addTile() {}
         override fun checkForUpdate() {}
@@ -50,6 +53,7 @@ class ScreenshotTest {
         canInstall: Boolean = true,
         settings: UiSettings = UiSettings(),
         tileOffer: TileOffer = TileOffer.CanAdd,
+        canDrawOverlays: Boolean = false,
     ) = captureRoboImage(roborazziOptions = options) {
         ShadTheme(dark = dark) {
             MainScreen(
@@ -60,6 +64,7 @@ class ScreenshotTest {
                 canInstallUpdates = canInstall,
                 tileOffer = tileOffer,
                 actions = noop,
+                canDrawOverlays = canDrawOverlays,
                 currentVersion = "0.1.10",
             )
         }
@@ -92,6 +97,20 @@ class ScreenshotTest {
 
     /** Android 12 and older: no in-app "Add tile" button. */
     @Test fun manualTileDark() = shot(dark = true, meter = null, UpdateState.UpToDate, tileOffer = TileOffer.Manual)
+
+    /** Overlay picked, "Display over other apps" not granted yet. */
+    @Test fun overlayNeedsPermission() =
+        shot(dark = false, busy, UpdateState.UpToDate, settings = UiSettings(overlay = true))
+
+    /** Overlay live; notifications are off on purpose, so no "notifications are off" alert. */
+    @Test fun overlayActiveDark() = shot(
+        dark = true,
+        busy,
+        UpdateState.UpToDate,
+        notificationsDenied = true,
+        settings = UiSettings(overlay = true),
+        canDrawOverlays = true,
+    )
 
     /** WCAG 1.4.4: text must survive 200% scaling without clipping or overlap. */
     @Test fun largeFont200() {

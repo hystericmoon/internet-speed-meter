@@ -10,6 +10,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.TrafficStats
@@ -71,6 +73,7 @@ class SpeedMeterService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var notificationManager: NotificationManager
     private lateinit var renderer: SpeedIconRenderer
+    private lateinit var overlay: SpeedOverlay
 
     private var polling = false
     private val sampler = RateSampler(IdleThreshold.LOW.bytesPerSec, IDLE_HIDE_DELAY_MS)
@@ -81,6 +84,14 @@ class SpeedMeterService : Service() {
         override fun run() {
             sample()
             handler.postDelayed(this, POLL_INTERVAL_MS)
+        }
+    }
+
+    // Field, not a lambda at the call site: SharedPreferences only holds listeners weakly.
+    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        when (key) {
+            AppPrefs.KEY_OVERLAY -> syncOverlay()
+            AppPrefs.KEY_OVERLAY_POSITION -> overlay.setPosition(AppPrefs.overlayPosition(this))
         }
     }
 
@@ -99,6 +110,8 @@ class SpeedMeterService : Service() {
         super.onCreate()
         notificationManager = getSystemService(NotificationManager::class.java)
         renderer = SpeedIconRenderer(this)
+        overlay = SpeedOverlay(this)
+        AppPrefs.prefs(this).registerOnSharedPreferenceChangeListener(prefListener)
         createChannels()
         ContextCompat.registerReceiver(
             this,
@@ -140,6 +153,7 @@ class SpeedMeterService : Service() {
             return START_NOT_STICKY
         }
         lastPostedKey = null
+        syncOverlay()
 
         val interactive = getSystemService(PowerManager::class.java).isInteractive
         if (interactive) resumePolling() else pausePolling()
@@ -150,9 +164,28 @@ class SpeedMeterService : Service() {
         handler.removeCallbacks(tick)
         polling = false
         unregisterReceiver(screenReceiver)
+        AppPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(prefListener)
+        overlay.hide()
         _state.value = null
         SpeedMeterTileService.refresh(this)
         super.onDestroy()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        overlay.relayout() // rotation changes the status bar height and screen width
+    }
+
+    /** Shows or removes the overlay to match the setting, then reposts the notification for the new mode. */
+    private fun syncOverlay() {
+        if (AppPrefs.overlayActive(this)) {
+            overlay.show(AppPrefs.overlayPosition(this))
+            overlay.render(meter, AppPrefs.speedUnit(this))
+        } else {
+            overlay.hide()
+        }
+        lastPostedKey = null
+        postNotification(meter)
     }
 
     private fun resumePolling() {
@@ -183,6 +216,10 @@ class SpeedMeterService : Service() {
     private fun update(newState: MeterState) {
         meter = newState
         _state.value = newState
+        // Picks up a "Display over other apps" grant made after the setting was switched on.
+        // overlayActive only does the permission check while the setting is on.
+        if (AppPrefs.overlayActive(this) != overlay.isShowing) syncOverlay()
+        if (overlay.isShowing) overlay.render(newState, AppPrefs.speedUnit(this))
         postNotification(newState)
     }
 
@@ -195,7 +232,8 @@ class SpeedMeterService : Service() {
 
         // Skip reposting when nothing visible changed; keeps notification churn down.
         val unit = AppPrefs.speedUnit(this)
-        val key = listOf(
+        // In overlay mode the notification is static, so it never needs reposting per tick.
+        val key = if (overlay.isShowing) "overlay" else listOf(
             SpeedFormat.full(state.downBytesPerSec, unit),
             SpeedFormat.full(state.upBytesPerSec, unit),
             state.hidden,
@@ -209,6 +247,8 @@ class SpeedMeterService : Service() {
     }
 
     private fun buildNotification(state: MeterState): Notification {
+        if (overlay.isShowing) return buildOverlayModeNotification()
+
         val transparentFallback = state.hidden && AppPrefs.transparentIconFallback(this)
         val onIdleChannel = state.hidden && !transparentFallback
         val unit = AppPrefs.speedUnit(this)
@@ -226,18 +266,8 @@ class SpeedMeterService : Service() {
             else -> null
         }
 
-        val openApp = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val stop = PendingIntent.getService(
-            this,
-            1,
-            Intent(this, SpeedMeterService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val openApp = openAppIntent()
+        val stop = stopIntent()
 
         return NotificationCompat.Builder(this, if (onIdleChannel) CHANNEL_IDLE else CHANNEL_VISIBLE)
             .setSmallIcon(IconCompat.createWithBitmap(icon))
@@ -254,6 +284,40 @@ class SpeedMeterService : Service() {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
+
+    /**
+     * The foreground service still needs a notification. In overlay mode it goes on the MIN
+     * channel (never in the status bar, folded at the bottom of the panel). If the user turns
+     * notifications off, Android 13+ drops it from the panel entirely and the meter keeps running.
+     */
+    private fun buildOverlayModeNotification(): Notification =
+        NotificationCompat.Builder(this, CHANNEL_IDLE)
+            .setSmallIcon(R.drawable.ic_tile_speed)
+            .setContentTitle(getString(R.string.overlay_notification_title))
+            .setContentText(getString(R.string.overlay_notification_text))
+            .setContentIntent(openAppIntent())
+            .addAction(0, getString(R.string.notification_stop), stopIntent())
+            .setOngoing(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .build()
+
+    private fun openAppIntent(): PendingIntent = PendingIntent.getActivity(
+        this,
+        0,
+        Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    private fun stopIntent(): PendingIntent = PendingIntent.getService(
+        this,
+        1,
+        Intent(this, SpeedMeterService::class.java).setAction(ACTION_STOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     private fun createChannels() {
         // LOW: icon in the status bar, no sound or heads-up.

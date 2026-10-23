@@ -39,6 +39,7 @@ import com.example.speedmeter.ui.ShadCard
 import com.example.speedmeter.ui.ShadProgress
 import com.example.speedmeter.ui.ShadRadioGroup
 import com.example.speedmeter.ui.ShadSeparator
+import com.example.speedmeter.ui.ShadSlider
 import com.example.speedmeter.ui.ShadToggleGroup
 import com.example.speedmeter.ui.SettingRow
 import com.example.speedmeter.update.UpdateState
@@ -49,6 +50,9 @@ data class UiSettings(
     val idleThreshold: IdleThreshold = IdleThreshold.LOW,
     val transparentFallback: Boolean = false,
     val autoUpdate: Boolean = true,
+    /** User picked overlay mode; it's live only when [MainScreen]'s canDrawOverlays is true too. */
+    val overlay: Boolean = false,
+    val overlayPosition: Float = 0.3f,
 )
 
 enum class TileOffer {
@@ -64,6 +68,9 @@ interface MainActions {
     fun setUnit(unit: SpeedUnit)
     fun setIdleThreshold(threshold: IdleThreshold)
     fun setTransparentFallback(enabled: Boolean)
+    fun setOverlay(enabled: Boolean)
+    fun setOverlayPosition(fraction: Float)
+    fun openOverlaySettings()
     fun setAutoUpdate(enabled: Boolean)
     fun addTile()
     fun checkForUpdate()
@@ -81,6 +88,7 @@ internal fun MainScreen(
     canInstallUpdates: Boolean,
     tileOffer: TileOffer,
     actions: MainActions,
+    canDrawOverlays: Boolean = false,
     currentVersion: String = BuildConfig.VERSION_NAME,
 ) {
     Column(
@@ -94,7 +102,8 @@ internal fun MainScreen(
     ) {
         Header(meter)
 
-        if (notificationsDenied) {
+        // In overlay mode notifications being off is the point, not a problem.
+        if (notificationsDenied && !settings.overlay) {
             ShadAlert(
                 title = "Notifications are off",
                 description = "The speed can't appear in the status bar until notifications are allowed.",
@@ -106,7 +115,7 @@ internal fun MainScreen(
 
         MeterCard(meter, settings.unit, actions)
         UpdateCard(update, canInstallUpdates, currentVersion, actions)
-        DisplayCard(settings, actions)
+        DisplayCard(settings, canDrawOverlays, actions)
         AppCard(update, settings, tileOffer, currentVersion, actions)
     }
 }
@@ -256,9 +265,57 @@ private fun FieldLabel(title: String, description: String) {
 }
 
 @Composable
-private fun DisplayCard(settings: UiSettings, actions: MainActions) {
+private fun DisplayCard(settings: UiSettings, canDrawOverlays: Boolean, actions: MainActions) {
     ShadCard {
         CardHeader("Display")
+        Spacer(Modifier.height(16.dp))
+
+        FieldLabel(
+            "Show speed as",
+            if (settings.overlay) {
+                "Drawn over the status bar, so it can stay out of the notification panel. Experimental."
+            } else {
+                "An icon in the status bar. Android also lists it in the notification panel."
+            },
+        )
+        ShadToggleGroup(
+            options = listOf(false, true),
+            selected = settings.overlay,
+            label = { if (it) "Overlay" else "Icon" },
+            onSelect = actions::setOverlay,
+        )
+
+        if (settings.overlay) {
+            Spacer(Modifier.height(16.dp))
+            if (!canDrawOverlays) {
+                ShadAlert(
+                    title = "Permission needed",
+                    description = "Allow Speed Meter to display over other apps so it can draw in the status bar. " +
+                        "Until then it keeps using the icon.",
+                ) {
+                    ShadButton("Allow", actions::openOverlaySettings)
+                }
+            } else {
+                FieldLabel("Position", "Drag to clear your clock, icons and camera. The overlay moves as you drag.")
+                ShadSlider(
+                    value = settings.overlayPosition,
+                    onValueChange = actions::setOverlayPosition,
+                    stateLabel = "${(settings.overlayPosition * 100).toInt()}% from the left",
+                )
+                Spacer(Modifier.height(8.dp))
+                ShadAlert(
+                    title = "Remove it from the notification panel",
+                    description = "Turn off notifications for Speed Meter. On Android 13 and later the meter " +
+                        "then leaves the panel and keeps running. Update prompts go quiet too; " +
+                        "automatic updates still install.",
+                ) {
+                    ShadButton("Notification settings", actions::openNotificationSettings, variant = ButtonVariant.Outline)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        ShadSeparator()
         Spacer(Modifier.height(16.dp))
 
         FieldLabel("Units", "Mbps matches speed tests and your internet plan.")
@@ -281,8 +338,8 @@ private fun DisplayCard(settings: UiSettings, actions: MainActions) {
             onSelect = actions::setIdleThreshold,
         )
 
-        // Only relevant when hiding is on (progressive disclosure).
-        if (settings.idleThreshold != IdleThreshold.NEVER) {
+        // Only relevant to icon mode with hiding on (progressive disclosure).
+        if (settings.idleThreshold != IdleThreshold.NEVER && !(settings.overlay && canDrawOverlays)) {
             Spacer(Modifier.height(8.dp))
             ShadSeparator()
             SettingRow(

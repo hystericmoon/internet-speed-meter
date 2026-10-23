@@ -10,4 +10,6 @@
     <string name="tile_label">Speed meter</string>
     <string name="tile_off">Off</string>
     <string name="tile_paused">Paused</string>
+    <string name="overlay_notification_title">Speed Meter is running</string>
+    <string name="overlay_notification_text">Showing speed as a status bar overlay</string>
 </resources>
