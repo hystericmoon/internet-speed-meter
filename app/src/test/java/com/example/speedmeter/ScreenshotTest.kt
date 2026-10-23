@@ -35,6 +35,7 @@ class ScreenshotTest {
         override fun setIdleThreshold(threshold: IdleThreshold) {}
         override fun setOverlay(enabled: Boolean) {}
         override fun setOverlayPosition(fraction: Float) {}
+        override fun setOverlayVertical(fraction: Float) {}
         override fun setOverlayHideInLandscape(enabled: Boolean) {}
         override fun openOverlaySettings() {}
         override fun setAutoUpdate(enabled: Boolean) {}

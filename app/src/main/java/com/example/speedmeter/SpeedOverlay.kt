@@ -43,6 +43,7 @@ class SpeedOverlay(private val context: Context) {
     private var probe: View? = null
 
     private var position = 0.5f
+    private var verticalPosition = 0.5f
     private var hideInLandscape = true
     private var hiddenWhenIdle = false
     private var lastLandscape: Boolean? = null
@@ -57,8 +58,9 @@ class SpeedOverlay(private val context: Context) {
 
     val isShowing: Boolean get() = view != null
 
-    fun show(positionFraction: Float, hideInLandscape: Boolean) {
+    fun show(positionFraction: Float, verticalFraction: Float, hideInLandscape: Boolean) {
         position = positionFraction
+        verticalPosition = verticalFraction
         this.hideInLandscape = hideInLandscape
         if (view != null) {
             relayout()
@@ -137,6 +139,11 @@ class SpeedOverlay(private val context: Context) {
         relayout()
     }
 
+    fun setVerticalPosition(fraction: Float) {
+        verticalPosition = fraction
+        relayout()
+    }
+
     fun setHideInLandscape(enabled: Boolean) {
         hideInLandscape = enabled
         applyVisibility()
@@ -158,6 +165,7 @@ class SpeedOverlay(private val context: Context) {
         val lp = params ?: return
         lp.height = statusBarHeight()
         lp.x = overlayX(position, screenWidth(), lp.width)
+        lp.y = overlayY(verticalPosition, lp.height)
         runCatching { windowManager.updateViewLayout(v, lp) }
         val landscape = isLandscape()
         if (landscape != lastLandscape) {
@@ -301,6 +309,14 @@ class SpeedOverlay(private val context: Context) {
 
         fun format(downBytesPerSec: Long, upBytesPerSec: Long, unit: SpeedUnit): String =
             "↓${SpeedFormat.compact(downBytesPerSec, unit)} ↑${SpeedFormat.compact(upBytesPerSec, unit)}"
+
+        /**
+         * Vertical offset for a 0..1 position: 0.5 = centred on the status bar, 0 / 1 = half the
+         * bar's height up / down, enough to line up with the clock on any layout.
+         * (FLAG_LAYOUT_NO_LIMITS lets the window sit partly above the screen edge.)
+         */
+        fun overlayY(fraction: Float, barHeight: Int): Int =
+            ((fraction.coerceIn(0f, 1f) - 0.5f) * barHeight).roundToInt()
 
         /** Left edge for a 0..1 position: 0 = flush left, 1 = flush right, always fully on screen. */
         fun overlayX(fraction: Float, screenWidth: Int, viewWidth: Int): Int =

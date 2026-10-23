@@ -55,6 +55,7 @@ data class UiSettings(
     /** User picked overlay mode; it's live only when [MainScreen]'s canDrawOverlays is true too. */
     val overlay: Boolean = false,
     val overlayPosition: Float = 0.3f,
+    val overlayVertical: Float = 0.5f,
     val overlayHideInLandscape: Boolean = true,
 )
 
@@ -72,6 +73,7 @@ interface MainActions {
     fun setIdleThreshold(threshold: IdleThreshold)
     fun setOverlay(enabled: Boolean)
     fun setOverlayPosition(fraction: Float)
+    fun setOverlayVertical(fraction: Float)
     fun setOverlayHideInLandscape(enabled: Boolean)
     fun openOverlaySettings()
     fun setAutoUpdate(enabled: Boolean)
@@ -312,11 +314,22 @@ private fun DisplayCard(
                     ShadButton("Allow", actions::openOverlaySettings)
                 }
             } else {
-                FieldLabel("Position", "Drag to clear your clock, icons and camera. The overlay moves as you drag.")
+                FieldLabel(
+                    "Position",
+                    "Clear your clock, icons and camera, and line it up with the clock. The overlay moves as you drag.",
+                )
+                SliderLabel("Horizontal", "Left", "Right")
                 ShadSlider(
                     value = settings.overlayPosition,
                     onValueChange = actions::setOverlayPosition,
                     stateLabel = "${(settings.overlayPosition * 100).toInt()}% from the left",
+                )
+                Spacer(Modifier.height(8.dp))
+                SliderLabel("Vertical", "Up", "Down")
+                ShadSlider(
+                    value = settings.overlayVertical,
+                    onValueChange = actions::setOverlayVertical,
+                    stateLabel = verticalLabel(settings.overlayVertical),
                 )
                 SettingRow(
                     title = "Hide in landscape",
@@ -387,6 +400,24 @@ private fun DiagnosticsCard(lines: List<String>, actions: MainActions) {
             style = Shad.type.muted.copy(fontFamily = GeistMono, fontSize = 11.sp, lineHeight = 16.sp),
             color = c.foreground,
         )
+    }
+}
+
+/** Slider name plus its two end labels, so direction is clear without dragging first. */
+@Composable
+private fun SliderLabel(name: String, start: String, end: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(name, style = Shad.type.small, color = Shad.colors.foreground, modifier = Modifier.weight(1f))
+        Text("$start · $end", style = Shad.type.muted, color = Shad.colors.mutedForeground)
+    }
+}
+
+internal fun verticalLabel(fraction: Float): String {
+    val percent = ((fraction - 0.5f) * 200).toInt()
+    return when {
+        percent < 0 -> "${-percent}% up"
+        percent > 0 -> "$percent% down"
+        else -> "Centred"
     }
 }
 

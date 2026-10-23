@@ -33,4 +33,19 @@ class SpeedOverlayTest {
         assertEquals("full screen (insets)", SpeedOverlay.hideReason(idle = false, landscape = false, insetsHidden = true, probeHidden = true))
         assertEquals("full screen (probe)", SpeedOverlay.hideReason(idle = false, landscape = false, insetsHidden = false, probeHidden = true))
     }
+
+    @Test
+    fun `vertical position centres at 0_5 and moves half a bar either way`() {
+        assertEquals(-40, SpeedOverlay.overlayY(0f, barHeight = 80))
+        assertEquals(0, SpeedOverlay.overlayY(0.5f, barHeight = 80))
+        assertEquals(40, SpeedOverlay.overlayY(1f, barHeight = 80))
+        assertEquals(40, SpeedOverlay.overlayY(3f, barHeight = 80))
+    }
+
+    @Test
+    fun `vertical slider reads as up, centred or down`() {
+        assertEquals("Centred", verticalLabel(0.5f))
+        assertEquals("50% up", verticalLabel(0.25f))
+        assertEquals("100% down", verticalLabel(1f))
+    }
 }

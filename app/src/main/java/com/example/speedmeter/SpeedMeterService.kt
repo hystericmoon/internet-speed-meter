@@ -92,6 +92,7 @@ class SpeedMeterService : Service() {
         when (key) {
             AppPrefs.KEY_OVERLAY -> syncOverlay()
             AppPrefs.KEY_OVERLAY_POSITION -> overlay.setPosition(AppPrefs.overlayPosition(this))
+            AppPrefs.KEY_OVERLAY_VERTICAL -> overlay.setVerticalPosition(AppPrefs.overlayVertical(this))
             AppPrefs.KEY_OVERLAY_HIDE_LANDSCAPE -> overlay.setHideInLandscape(AppPrefs.overlayHideInLandscape(this))
         }
     }
@@ -190,7 +191,11 @@ class SpeedMeterService : Service() {
     /** Shows or removes the overlay to match the setting, then reposts the notification for the new mode. */
     private fun syncOverlay() {
         if (AppPrefs.overlayActive(this)) {
-            overlay.show(AppPrefs.overlayPosition(this), AppPrefs.overlayHideInLandscape(this))
+            overlay.show(
+                AppPrefs.overlayPosition(this),
+                AppPrefs.overlayVertical(this),
+                AppPrefs.overlayHideInLandscape(this),
+            )
             overlay.render(meter, AppPrefs.speedUnit(this))
         } else {
             overlay.hide()

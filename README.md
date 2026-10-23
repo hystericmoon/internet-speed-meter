@@ -81,8 +81,9 @@ every notification is also listed in the panel. Overlay mode works around that:
 
 1. **Display → Show speed as → Overlay.** Android asks you to allow *Display over other
    apps* for Speed Meter. Until you do, the app keeps using the icon.
-2. **Position:** drag the slider until the overlay clears your clock, notification
-   icons and camera cutout. The real overlay moves as you drag.
+2. **Position:** drag **Horizontal** until the overlay clears your clock, notification
+   icons and camera cutout, and **Vertical** to line it up with the clock. The real
+   overlay moves as you drag.
 3. **Remove the panel entry:** tap **Notification settings** and turn notifications off
    for Speed Meter. On **Android 13 and later** the meter then disappears from the
    notification panel and keeps running. It's only listed under *Active apps* at the
@@ -118,7 +119,8 @@ Background usage limits → Never sleeping apps*.
 | Setting | Options | Default | Notes |
 |---|---|---|---|
 | **Show speed as** | Icon · Overlay | **Icon** | See [display modes](#keeping-it-out-of-the-notification-panel-overlay-mode). Overlay needs *Display over other apps*. |
-| **Position** | Slider, left → right | 30% from left | Overlay only. Moves the overlay live. |
+| **Position: horizontal** | Slider, left → right | 30% from left | Overlay only. Moves the overlay live. |
+| **Position: vertical** | Slider, up → down | Centred | Overlay only. Up to half the status bar's height either way, to line up with the clock. |
 | **Hide in landscape** | On · Off | **On** | Overlay only. The dependable way to keep it off full-screen video and games, which are almost always landscape. See [Full-screen detection](#full-screen-detection). |
 | **Units** | Mbps · MB/s | **Mbps** | Mbps (megabits, decimal) is how ISPs and speed tests quote speed. MB/s (megabytes, binary) is what file managers and downloads show. 1 MB/s ≈ 8.4 Mbps. |
 | **Hide when idle** | Never hide · Below 8 kbps · Below 100 kbps · Below 1 Mbps | **Below 8 kbps** | Hides from the status bar after **5 seconds** below the threshold (download + upload combined). Comes back the moment traffic rises above it. Raise it if background sync keeps the icon flickering on. |
@@ -333,13 +335,13 @@ Requirements: JDK 17+, Android SDK 35.
 ./gradlew lintDebug                # Android lint
 ```
 
-### Tests (36)
+### Tests (38)
 
 | Test | Covers |
 |---|---|
 | `SpeedFormatTest` | Mbps/MB/s conversion, rounding, unit switching, 4-character limit for the icon, threshold labels |
 | `RateSamplerTest` | Rate maths, counter resets, 5 s idle hiding, "never hide", changing the threshold at runtime, screen-off reset |
-| `SpeedOverlayTest` | Overlay position maths (always fully on screen), one-line text format, hide-reason priority |
+| `SpeedOverlayTest` | Horizontal and vertical position maths (always fully on screen), slider labels, one-line text format, hide-reason priority |
 | `UpdateInfoTest` | Parsing `version.json`, only higher versions count as updates |
 | `ScreenshotTest` | 11 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, 200% font |
 

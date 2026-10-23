@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
             autoUpdate = AppPrefs.autoUpdate(this),
             overlay = AppPrefs.overlay(this),
             overlayPosition = AppPrefs.overlayPosition(this),
+            overlayVertical = AppPrefs.overlayVertical(this),
             overlayHideInLandscape = AppPrefs.overlayHideInLandscape(this),
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) tileOffer = TileOffer.CanAdd
@@ -152,6 +153,11 @@ class MainActivity : ComponentActivity() {
         override fun setOverlayPosition(fraction: Float) {
             settings = settings.copy(overlayPosition = fraction)
             AppPrefs.setOverlayPosition(this@MainActivity, fraction)
+        }
+
+        override fun setOverlayVertical(fraction: Float) {
+            settings = settings.copy(overlayVertical = fraction)
+            AppPrefs.setOverlayVertical(this@MainActivity, fraction)
         }
 
         override fun setOverlayHideInLandscape(enabled: Boolean) {

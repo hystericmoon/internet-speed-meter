@@ -20,6 +20,7 @@ object AppPrefs {
     private const val KEY_IDLE_THRESHOLD = "idle_threshold"
     const val KEY_OVERLAY = "overlay"
     const val KEY_OVERLAY_POSITION = "overlay_position"
+    const val KEY_OVERLAY_VERTICAL = "overlay_vertical"
     const val KEY_OVERLAY_HIDE_LANDSCAPE = "overlay_hide_landscape"
 
     /** Check for, download and install new builds in the background. */
@@ -75,6 +76,14 @@ object AppPrefs {
 
     fun setOverlayPosition(context: Context, fraction: Float) {
         prefs(context).edit().putFloat(KEY_OVERLAY_POSITION, fraction).apply()
+    }
+
+    /** Vertical position, 0 = half a bar up, 0.5 = centred on the status bar, 1 = half a bar down. */
+    fun overlayVertical(context: Context): Float =
+        prefs(context).getFloat(KEY_OVERLAY_VERTICAL, 0.5f)
+
+    fun setOverlayVertical(context: Context, fraction: Float) {
+        prefs(context).edit().putFloat(KEY_OVERLAY_VERTICAL, fraction).apply()
     }
 
     /**
