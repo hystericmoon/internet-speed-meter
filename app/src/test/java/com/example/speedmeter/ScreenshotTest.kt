@@ -128,6 +128,25 @@ class ScreenshotTest {
         backgroundUnrestricted = false,
     )
 
+    /** Overlay live and idle: badge says Idle, the setting reads "Dim when idle", the log shows the heartbeat. */
+    @Test fun overlayIdleDims() = shot(
+        dark = false,
+        MeterState(downBytesPerSec = 410, upBytesPerSec = 120, hidden = true),
+        UpdateState.UpToDate,
+        notificationsDenied = true,
+        settings = UiSettings(overlay = true),
+        canDrawOverlays = true,
+        diagnostics = listOf(
+            "Oct 23 14:02:11  meter started",
+            "Oct 23 14:02:11  overlay shown",
+            "Oct 23 14:02:12  overlay visible",
+            "Oct 23 14:02:12  status: overlay visible, ↓1.2M ↑96K",
+            "Oct 23 14:09:30  overlay dimmed: idle",
+            "Oct 23 14:12:12  status: overlay dimmed: idle, ↓3.3K ↑0.9K",
+            "Oct 23 14:12:40  overlay window lost, re-adding",
+        ),
+    )
+
     /** WCAG 1.4.4: text must survive 200% scaling without clipping or overlap. */
     @Test fun largeFont200() {
         RuntimeEnvironment.setFontScale(2f)

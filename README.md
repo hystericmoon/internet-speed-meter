@@ -66,7 +66,7 @@ The status badge in the app always spells out the state:
 | Badge | Meaning |
 |---|---|
 | **Running** | Measuring; speed shows in the status bar |
-| **Idle** | Measuring, but traffic is below your idle threshold, so it's hidden from the status bar |
+| **Idle** | Measuring, but traffic is below your idle threshold: hidden from the status bar (icon) or dimmed (overlay) |
 | **Paused** | Screen is off; measuring is suspended to save battery |
 | **Stopped** | Meter is off |
 
@@ -97,8 +97,12 @@ silently still do. Anything that needs a tap waits until you open the app.
 disappears while notifications are off. The app warns about this, whether they were turned off
 in the app or in system settings, and offers to switch to Overlay.
 
-**"Hide when idle" applies to the overlay too.** When traffic drops below the threshold
-the overlay disappears until traffic picks up again. Choose *Never hide* to keep it up.
+**The overlay dims when idle instead of hiding.** When traffic drops below the threshold
+it fades to about a third of its opacity, and brightens again when traffic picks up. In
+overlay mode the setting reads **Dim when idle**; choose *Never dim* to keep it at full
+strength. Why: an overlay that vanishes looks exactly like one that stopped working
+(on 0.1.7–0.1.9 "it works for a while, then disappears" was most likely this). Nielsen's
+*visibility of system status*: the meter should always show that it's alive.
 
 **Samsung:** on App card → **Background running → Allow** so battery optimisation doesn't
 stop the meter. If it still stops, also add Speed Meter to *Settings → Battery →
@@ -123,7 +127,7 @@ Background usage limits → Never sleeping apps*.
 | **Position: vertical** | Slider, up → down | Centred | Overlay only. Up to half the status bar's height either way, to line up with the clock. |
 | **Hide in landscape** | On · Off | **On** | Overlay only. The dependable way to keep it off full-screen video and games, which are almost always landscape. See [Full-screen detection](#full-screen-detection). |
 | **Units** | Mbps · MB/s | **Mbps** | Mbps (megabits, decimal) is how ISPs and speed tests quote speed. MB/s (megabytes, binary) is what file managers and downloads show. 1 MB/s ≈ 8.4 Mbps. |
-| **Hide when idle** | Never hide · Below 8 kbps · Below 100 kbps · Below 1 Mbps | **Below 8 kbps** | Hides from the status bar after **5 seconds** below the threshold (download + upload combined). Comes back the moment traffic rises above it. Raise it if background sync keeps the icon flickering on. |
+| **Hide when idle** (icon) / **Dim when idle** (overlay) | Never · Below 8 kbps · Below 100 kbps · Below 1 Mbps | **Below 8 kbps** | After **5 seconds** below the threshold (download + upload combined) the icon leaves the status bar, and the overlay dims. Back the moment traffic rises above it. Raise it if background sync keeps the icon flickering on. |
 
 **Why Mbps by default:** people check the meter against their plan ("100 Mbps") and
 speed-test results. Showing MB/s would read 8× smaller than they expect. This follows
@@ -132,8 +136,8 @@ Nielsen's *match between the system and the real world* heuristic.
 **How hiding works:** in icon mode the notification moves to a *minimum-importance*
 channel, which Android keeps out of the status bar. On a Samsung A55 this hides the icon
 but leaves a gap where it was. An earlier "transparent icon" variant was removed:
-a transparent icon can only ever leave a gap too. In overlay mode the overlay simply
-disappears, with no gap.
+a transparent icon can only ever leave a gap too. In overlay mode the overlay dims
+(view alpha 0.45 on top of the window's 0.8 cap, ≈ 36% in total) and keeps its place.
 
 ### App
 
@@ -177,8 +181,9 @@ disappears, with no gap.
 - **Overlay mode.** `SpeedOverlay` adds a non-touchable `TYPE_APPLICATION_OVERLAY`
   window at the top of the screen, sized to the status bar height and laid out into the
   cutout area. It has a fixed width so it doesn't jitter, and white text with a soft
-  shadow so it reads on dark and light bars. It goes invisible when the meter is idle
-  and in full screen (below), and re-lays out on rotation. Its alpha is capped at 0.8,
+  shadow so it reads on dark and light bars. It dims when the meter is idle, goes
+  invisible in full screen (below), and re-lays out on rotation. Every second it also checks
+  that Android hasn't silently removed its window, and re-adds it if so. Its alpha is capped at 0.8,
   Android 12's limit for letting touches pass through overlays, so it can never block taps.
 
 ### Full-screen detection
@@ -198,14 +203,17 @@ so a missed or stale event (e.g. around lock/unlock) can't keep the overlay hidd
 
 ### Diagnostics
 
-A **Diagnostics** card at the bottom of the app is a testing aid. It keeps the last 40
-events and survives restarts:
+A **Diagnostics** card at the bottom of the app is a testing aid. It keeps the last 60
+events (shows the latest 15) and survives restarts:
 
 - meter started / stopped / restarted by Android after a kill / refused to start
 - app process started (a new one without a stop before it means Android killed the app)
 - screen off / on
-- overlay shown / removed, and **every time it hides or reappears, with the reason**:
-  `idle`, `landscape`, `full screen (insets)` or `full screen (probe)`
+- overlay shown / removed, `dimmed: idle`, and **every time it hides or reappears, with the
+  reason**: `landscape`, `full screen (insets)` or `full screen (probe)`
+- `overlay window lost, re-adding`: Android removed the window behind the app's back
+- `status: …` every **10 minutes** while the screen is on (mode, overlay state, speed). A gap
+  in these lines pinpoints when the meter stopped ticking
 - probe calibration and insets changes
 
 If something stops working, a screenshot of this card usually says why.
@@ -311,7 +319,8 @@ The spike's open questions can only be answered on real hardware. Please report
 - [ ] **Overlay: position:** can you find a spot that clears the clock, icons and camera? Does it hold after rotating?
 - [x] **Overlay: full screen (landscape):** hides on Samsung A55 since *Hide in landscape*.
 - [ ] **Overlay: full screen (portrait):** Reels/Shorts. Depends on the probe; screenshot Diagnostics afterwards.
-- [ ] **Overlay: stays up:** on 0.1.7 it "worked for a while, then didn't" (Samsung A55). Retest on 0.1.8+, and when it vanishes screenshot **Diagnostics**. It names the cause (idle, a detection signal, or Android stopping the app).
+- [ ] **Overlay: stays up:** on 0.1.7–0.1.9 it "worked for a while, then didn't" (Samsung A55). Since 0.1.10 idle dims instead of hiding, and a dropped window is re-added. If it still vanishes, screenshot **Diagnostics**: it names the cause (a detection signal, `window lost`, or Android stopping the app), and the 10-minute `status` lines show when.
+- [ ] **Overlay: dimmed idle state:** is the dimmed overlay noticeable but unobtrusive, on dark and light bars?
 - [ ] **Overlay: panel:** on Samsung A55 it moved into "Other notifications". Still to confirm: is that with Speed Meter notifications fully **off**?
 - [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
 - [ ] **Units:** switch Mbps ↔ MB/s. Do the app, notification and icon all follow within a second?
@@ -335,15 +344,15 @@ Requirements: JDK 17+, Android SDK 35.
 ./gradlew lintDebug                # Android lint
 ```
 
-### Tests (38)
+### Tests (40)
 
 | Test | Covers |
 |---|---|
-| `SpeedFormatTest` | Mbps/MB/s conversion, rounding, unit switching, 4-character limit for the icon, threshold labels |
+| `SpeedFormatTest` | Mbps/MB/s conversion, rounding, unit switching, 4-character limit for the icon, threshold labels (incl. "Never dim" in overlay mode) |
 | `RateSamplerTest` | Rate maths, counter resets, 5 s idle hiding, "never hide", changing the threshold at runtime, screen-off reset |
-| `SpeedOverlayTest` | Horizontal and vertical position maths (always fully on screen), slider labels, one-line text format, hide-reason priority |
+| `SpeedOverlayTest` | Horizontal and vertical position maths (always fully on screen), slider labels, one-line text format, hide-reason priority (idle dims, never hides) |
 | `UpdateInfoTest` | Parsing `version.json`, only higher versions count as updates |
-| `ScreenshotTest` | 11 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, 200% font |
+| `ScreenshotTest` | 12 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, overlay idle (dims), 200% font |
 
 Screenshot tests run on the JVM (Robolectric + Roborazzi), no emulator needed.
 Baselines are in `app/src/test/screenshots/`.

@@ -34,6 +34,9 @@ import kotlin.math.roundToInt
  * 2. a 1px invisible "probe" window that fits the status bar: it sits at y = 0 only when
  *    the status bar is gone;
  * 3. orientation: optionally hide in landscape, where full-screen video and games live.
+ *
+ * When the network is idle the overlay *dims* rather than hides: a meter that vanishes
+ * reads the same as a broken one. Hiding is kept for full screen, where it must go.
  */
 class SpeedOverlay(private val context: Context) {
 
@@ -47,8 +50,12 @@ class SpeedOverlay(private val context: Context) {
     private var hideInLandscape = true
     private var hiddenWhenIdle = false
     private var lastLandscape: Boolean? = null
-    /** Last logged hide reason; "" = never logged, null = visible. */
-    private var lastReason: String? = ""
+    /** Last logged state, e.g. "visible" or "hidden: landscape"; "" = never logged. */
+    private var lastState = ""
+    /** Set once Android has attached the window; detached after that means it was dropped. */
+    private var attached = false
+    /** The service retries every second; log a refused addView once, not every time. */
+    private var addFailureLogged = false
 
     // Full-screen signals; see class doc.
     private var insetsSayHidden = false
@@ -107,12 +114,22 @@ class SpeedOverlay(private val context: Context) {
         }
 
         watchInsets(text)
+        text.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {
+                attached = true
+            }
+
+            override fun onViewDetachedFromWindow(v: View) {}
+        })
         try {
             windowManager.addView(text, lp)
         } catch (e: Exception) {
             Log.w("SpeedMeter", "Couldn't add overlay", e)
+            if (!addFailureLogged) DiagnosticsLog.log("couldn't add overlay: ${e.javaClass.simpleName}")
+            addFailureLogged = true
             return
         }
+        addFailureLogged = false
         view = text
         params = lp
         addProbe()
@@ -128,7 +145,8 @@ class SpeedOverlay(private val context: Context) {
         params = null
         probe = null
         lastLandscape = null
-        lastReason = ""
+        lastState = ""
+        attached = false
         probeCalibrated = false
         probeSaysHidden = false
         insetsSayHidden = false
@@ -152,6 +170,13 @@ class SpeedOverlay(private val context: Context) {
     /** Called every second while polling. Also re-reads the full-screen signals, so a missed
      *  or stale event (e.g. around lock/unlock) can't keep the overlay hidden for good. */
     fun render(state: MeterState, unit: SpeedUnit) {
+        if (attached && view?.isAttachedToWindow == false) {
+            // Android removed the window without telling us ("visible" in the log, nothing on
+            // screen). Start over, so the overlay comes back within a second.
+            DiagnosticsLog.log("overlay window lost, re-adding")
+            hide()
+            show(position, verticalPosition, hideInLandscape)
+        }
         val v = view ?: return
         v.text = format(state.downBytesPerSec, state.upBytesPerSec, unit)
         hiddenWhenIdle = state.hidden
@@ -181,18 +206,24 @@ class SpeedOverlay(private val context: Context) {
     private fun applyVisibility() {
         val v = view ?: return
         val reason = hideReason(
-            idle = hiddenWhenIdle,
             landscape = hideInLandscape && isLandscape(),
             insetsHidden = insetsSayHidden,
             probeHidden = probeCalibrated && probeSaysHidden,
         )
-        if (reason != lastReason) {
-            lastReason = reason
-            DiagnosticsLog.log(if (reason == null) "overlay visible" else "overlay hidden: $reason")
+        val state = reason?.let { "hidden: $it" } ?: if (hiddenWhenIdle) "dimmed: idle" else "visible"
+        if (state != lastState) {
+            lastState = state
+            DiagnosticsLog.log("overlay $state")
         }
         // INVISIBLE, not GONE: the view must stay laid out to keep receiving inset changes.
         v.visibility = if (reason == null) View.VISIBLE else View.INVISIBLE
+        // View alpha, on top of the window's 0.8 cap: no relayout needed to dim.
+        v.alpha = if (hiddenWhenIdle) IDLE_ALPHA else 1f
     }
+
+    /** One-line summary for the periodic Diagnostics status line, e.g. "dimmed: idle". */
+    val statusLabel: String
+        get() = if (view == null) "not shown" else lastState.ifEmpty { "visible" }
 
     private fun pollSignals() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -293,10 +324,10 @@ class SpeedOverlay(private val context: Context) {
     }
 
     companion object {
-        /** Why the overlay is hidden, or null if it should show. First match wins (it's what the log reports). */
-        fun hideReason(idle: Boolean, landscape: Boolean, insetsHidden: Boolean, probeHidden: Boolean): String? =
+        /** Why the overlay is hidden, or null if it should show. First match wins (it's what the log reports).
+         *  Idle isn't a reason: the overlay dims instead (see [IDLE_ALPHA]). */
+        fun hideReason(landscape: Boolean, insetsHidden: Boolean, probeHidden: Boolean): String? =
             when {
-                idle -> "idle"
                 landscape -> "landscape"
                 insetsHidden -> "full screen (insets)"
                 probeHidden -> "full screen (probe)"
@@ -305,6 +336,8 @@ class SpeedOverlay(private val context: Context) {
 
         /** Android 12+ blocks touches through overlays more opaque than this. */
         private const val MAX_PASS_THROUGH_ALPHA = 0.8f
+        /** Idle opacity, multiplied by the window's 0.8: about 36% in total. Present, but quiet. */
+        const val IDLE_ALPHA = 0.45f
         private const val WIDEST = 999L * 1_024 * 1_024
 
         fun format(downBytesPerSec: Long, upBytesPerSec: Long, unit: SpeedUnit): String =

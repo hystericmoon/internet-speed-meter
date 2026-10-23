@@ -366,11 +366,17 @@ private fun DisplayCard(
         ShadSeparator()
         Spacer(Modifier.height(16.dp))
 
-        FieldLabel("Hide when idle", "Leave the status bar after 5 seconds below:")
+        // The overlay dims rather than hides when idle, so it never looks like it stopped working.
+        val dims = settings.overlay && canDrawOverlays
+        if (dims) {
+            FieldLabel("Dim when idle", "Fade the overlay after 5 seconds below:")
+        } else {
+            FieldLabel("Hide when idle", "Leave the status bar after 5 seconds below:")
+        }
         ShadRadioGroup(
             options = IdleThreshold.entries,
             selected = settings.idleThreshold,
-            label = { idleLabel(it, settings.unit) },
+            label = { idleLabel(it, settings.unit, dims) },
             onSelect = actions::setIdleThreshold,
         )
     }
@@ -421,8 +427,8 @@ internal fun verticalLabel(fraction: Float): String {
     }
 }
 
-internal fun idleLabel(threshold: IdleThreshold, unit: SpeedUnit): String =
-    if (threshold == IdleThreshold.NEVER) "Never hide" else "Below ${SpeedFormat.full(threshold.bytesPerSec, unit)}"
+internal fun idleLabel(threshold: IdleThreshold, unit: SpeedUnit, dims: Boolean = false): String =
+    if (threshold == IdleThreshold.NEVER) (if (dims) "Never dim" else "Never hide") else "Below ${SpeedFormat.full(threshold.bytesPerSec, unit)}"
 
 @Composable
 private fun AppCard(

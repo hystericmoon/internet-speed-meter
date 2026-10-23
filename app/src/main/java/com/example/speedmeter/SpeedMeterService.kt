@@ -53,6 +53,8 @@ class SpeedMeterService : Service() {
 
         private const val POLL_INTERVAL_MS = 1_000L
         private const val IDLE_HIDE_DELAY_MS = 5_000L
+        /** Diagnostics heartbeat: a gap in these lines shows when the meter stopped ticking. */
+        private const val STATUS_INTERVAL_MS = 10 * 60_000L
 
         private val _state = MutableStateFlow<MeterState?>(null)
 
@@ -79,6 +81,7 @@ class SpeedMeterService : Service() {
     private val sampler = RateSampler(IdleThreshold.LOW.bytesPerSec, IDLE_HIDE_DELAY_MS)
     private var meter = MeterState()
     private var lastPostedKey: String? = null
+    private var lastStatusAt = 0L
 
     private val tick = object : Runnable {
         override fun run() {
@@ -227,6 +230,17 @@ class SpeedMeterService : Service() {
         sampler.idleThresholdBytesPerSec = AppPrefs.idleThreshold(this).bytesPerSec
         val reading = sampler.sample(now, rx, tx) ?: return
         update(MeterState(reading.downBytesPerSec, reading.upBytesPerSec, reading.hidden, paused = false))
+        if (lastStatusAt == 0L || now - lastStatusAt >= STATUS_INTERVAL_MS) {
+            lastStatusAt = now
+            logStatus()
+        }
+    }
+
+    private fun logStatus() {
+        val unit = AppPrefs.speedUnit(this)
+        val speed = SpeedOverlay.format(meter.downBytesPerSec, meter.upBytesPerSec, unit)
+        val mode = if (AppPrefs.overlayActive(this)) "overlay ${overlay.statusLabel}" else "icon${if (meter.hidden) ", idle" else ""}"
+        DiagnosticsLog.log("status: $mode, $speed")
     }
 
     private fun update(newState: MeterState) {

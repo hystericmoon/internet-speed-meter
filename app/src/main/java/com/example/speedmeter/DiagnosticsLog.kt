@@ -16,7 +16,7 @@ import java.util.Locale
  * the process (which is itself one of the things it's meant to reveal).
  */
 object DiagnosticsLog {
-    private const val MAX_EVENTS = 40
+    private const val MAX_EVENTS = 60
     private const val PREFS = "diagnostics"
     private const val KEY_LINES = "lines"
     private val time = SimpleDateFormat("MMM d HH:mm:ss", Locale.US)

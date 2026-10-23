@@ -74,4 +74,10 @@ class SpeedFormatTest {
             IdleThreshold.entries.map { idleLabel(it, BITS) },
         )
     }
+
+    @Test
+    fun `overlay mode says dim, not hide`() {
+        assertEquals("Never dim", idleLabel(IdleThreshold.NEVER, BITS, dims = true))
+        assertEquals("Below 8.0 kbps", idleLabel(IdleThreshold.LOW, BITS, dims = true))
+    }
 }
