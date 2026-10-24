@@ -28,25 +28,7 @@ class ScreenshotTest {
     // Tolerate tiny anti-aliasing differences between machines.
     private val options = RoborazziOptions(compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.005f))
 
-    private val noop = object : MainActions {
-        override fun start() {}
-        override fun stop() {}
-        override fun setUnit(unit: SpeedUnit) {}
-        override fun setIdleThreshold(threshold: IdleThreshold) {}
-        override fun setOverlay(enabled: Boolean) {}
-        override fun setOverlayPosition(fraction: Float) {}
-        override fun setOverlayVertical(fraction: Float) {}
-        override fun setOverlayHideInLandscape(enabled: Boolean) {}
-        override fun openOverlaySettings() {}
-        override fun setAutoUpdate(enabled: Boolean) {}
-        override fun addTile() {}
-        override fun checkForUpdate() {}
-        override fun installUpdate(state: UpdateState) {}
-        override fun openNotificationSettings() {}
-        override fun openInstallSettings() {}
-        override fun allowBackgroundRunning() {}
-        override fun clearDiagnostics() {}
-    }
+    private val noop = NoopActions
 
     private fun shot(
         dark: Boolean,
@@ -115,7 +97,7 @@ class ScreenshotTest {
         busy,
         UpdateState.UpToDate,
         notificationsDenied = true,
-        settings = UiSettings(overlay = true),
+        settings = UiSettings(overlay = true, showDiagnostics = true),
         canDrawOverlays = true,
         diagnostics = listOf(
             "Oct 23 14:02:11  meter started",
@@ -134,7 +116,7 @@ class ScreenshotTest {
         MeterState(downBytesPerSec = 410, upBytesPerSec = 120, hidden = true),
         UpdateState.UpToDate,
         notificationsDenied = true,
-        settings = UiSettings(overlay = true),
+        settings = UiSettings(overlay = true, showDiagnostics = true),
         canDrawOverlays = true,
         diagnostics = listOf(
             "Oct 23 14:02:11  meter started",
@@ -153,4 +135,26 @@ class ScreenshotTest {
         // Widest realistic readout on both sides.
         shot(dark = false, MeterState(999 * 1_024L, 999 * 1_024L), UpdateState.Available(update))
     }
+}
+
+/** Does nothing; tests override what they need. */
+object NoopActions : MainActions {
+    override fun start() {}
+    override fun stop() {}
+    override fun setUnit(unit: SpeedUnit) {}
+    override fun setIdleThreshold(threshold: IdleThreshold) {}
+    override fun setOverlay(enabled: Boolean) {}
+    override fun setOverlayPosition(fraction: Float) {}
+    override fun setOverlayVertical(fraction: Float) {}
+    override fun setOverlayHideInLandscape(enabled: Boolean) {}
+    override fun openOverlaySettings() {}
+    override fun setAutoUpdate(enabled: Boolean) {}
+    override fun addTile() {}
+    override fun checkForUpdate() {}
+    override fun installUpdate(state: UpdateState) {}
+    override fun openNotificationSettings() {}
+    override fun openInstallSettings() {}
+    override fun allowBackgroundRunning() {}
+    override fun clearDiagnostics() {}
+    override fun setShowDiagnostics(show: Boolean) {}
 }

@@ -203,8 +203,10 @@ so a missed or stale event (e.g. around lock/unlock) can't keep the overlay hidd
 
 ### Diagnostics
 
-A **Diagnostics** card at the bottom of the app is a testing aid. It keeps the last 60
-events (shows the latest 15) and survives restarts:
+A **Diagnostics** card is a testing aid, hidden by default. **Tap *Version* (App card) 7
+times** to show it at the bottom of the app; **Hide** puts it away again. Logging runs
+whether or not the card is shown. It keeps the last 60 events (shows the latest 15) and
+survives restarts:
 
 - meter started / stopped / restarted by Android after a kill / refused to start
 - app process started (a new one without a stop before it means Android killed the app)
@@ -310,7 +312,9 @@ intentionally off: shadcn is deliberately neutral.
 ## Testing on a device
 
 The spike's open questions can only be answered on real hardware. Please report
-**phone model, Android version, and what you saw**:
+**phone model, Android version, and what you saw**. No dedicated test session is needed:
+use the phone normally, and if something looks wrong, show Diagnostics (tap *Version* 7
+times) and screenshot it:
 
 - [ ] **Icon legibility:** can you read both lines at arm's length, on light and dark wallpaper?
 - [x] **Idle hiding:** hides, but leaves a gap (Samsung A55). Transparent-icon variant removed as a result.
@@ -344,7 +348,7 @@ Requirements: JDK 17+, Android SDK 35.
 ./gradlew lintDebug                # Android lint
 ```
 
-### Tests (40)
+### Tests (42)
 
 | Test | Covers |
 |---|---|
@@ -352,6 +356,7 @@ Requirements: JDK 17+, Android SDK 35.
 | `RateSamplerTest` | Rate maths, counter resets, 5 s idle hiding, "never hide", changing the threshold at runtime, screen-off reset |
 | `SpeedOverlayTest` | Horizontal and vertical position maths (always fully on screen), slider labels, one-line text format, hide-reason priority (idle dims, never hides) |
 | `UpdateInfoTest` | Parsing `version.json`, only higher versions count as updates |
+| `DiagnosticsRevealTest` | Diagnostics card hidden by default, 7 taps on Version reveal it (6 don't), Hide removes it |
 | `ScreenshotTest` | 12 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, overlay idle (dims), 200% font |
 
 Screenshot tests run on the JVM (Robolectric + Roborazzi), no emulator needed.

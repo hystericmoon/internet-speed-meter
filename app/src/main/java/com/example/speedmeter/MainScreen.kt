@@ -1,6 +1,8 @@
 package com.example.speedmeter
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,8 +17,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -57,6 +65,7 @@ data class UiSettings(
     val overlayPosition: Float = 0.3f,
     val overlayVertical: Float = 0.5f,
     val overlayHideInLandscape: Boolean = true,
+    val showDiagnostics: Boolean = false,
 )
 
 enum class TileOffer {
@@ -84,6 +93,7 @@ interface MainActions {
     fun openInstallSettings()
     fun allowBackgroundRunning()
     fun clearDiagnostics()
+    fun setShowDiagnostics(show: Boolean)
 }
 
 @Composable
@@ -130,7 +140,7 @@ internal fun MainScreen(
         UpdateCard(update, canInstallUpdates, currentVersion, actions)
         DisplayCard(settings, canDrawOverlays, actions)
         AppCard(update, settings, tileOffer, backgroundUnrestricted, currentVersion, actions)
-        DiagnosticsCard(diagnostics, actions)
+        if (settings.showDiagnostics) DiagnosticsCard(diagnostics, actions)
     }
 }
 
@@ -391,10 +401,12 @@ private fun DiagnosticsCard(lines: List<String>, actions: MainActions) {
             Column(Modifier.weight(1f).padding(end = 16.dp)) {
                 CardHeader(
                     "Diagnostics",
-                    "Testing aid. If something stops working, screenshot this. It survives restarts.",
+                    "Testing aid. If something stops working, screenshot this. It survives restarts. " +
+                        "Tap Version 7 times to bring it back after hiding.",
                 )
             }
             if (lines.isNotEmpty()) ShadButton("Clear", actions::clearDiagnostics, variant = ButtonVariant.Ghost)
+            ShadButton("Hide", { actions.setShowDiagnostics(false) }, variant = ButtonVariant.Ghost)
         }
         Spacer(Modifier.height(12.dp))
         Text(
@@ -406,6 +418,22 @@ private fun DiagnosticsCard(lines: List<String>, actions: MainActions) {
             style = Shad.type.muted.copy(fontFamily = GeistMono, fontSize = 11.sp, lineHeight = 16.sp),
             color = c.foreground,
         )
+    }
+}
+
+/**
+ * Android's "tap build number 7 times" convention: the Diagnostics card is a testing aid, so it
+ * stays out of the way until asked for. Taps more than 2 s apart start the count again.
+ */
+private fun Modifier.revealDiagnosticsOnTaps(shown: Boolean, actions: MainActions): Modifier = composed {
+    if (shown) return@composed this
+    var taps by remember { mutableIntStateOf(0) }
+    var lastTap by remember { mutableLongStateOf(0L) }
+    clickable {
+        val now = SystemClock.uptimeMillis()
+        taps = if (now - lastTap > 2_000) 1 else taps + 1
+        lastTap = now
+        if (taps >= 7) actions.setShowDiagnostics(true)
     }
 }
 
@@ -507,7 +535,7 @@ private fun AppCard(
                 .padding(top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).revealDiagnosticsOnTaps(settings.showDiagnostics, actions)) {
                 Text("Version $currentVersion", style = Shad.type.small, color = Shad.colors.foreground)
                 Text(
                     when (update) {

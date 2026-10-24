@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
             overlayPosition = AppPrefs.overlayPosition(this),
             overlayVertical = AppPrefs.overlayVertical(this),
             overlayHideInLandscape = AppPrefs.overlayHideInLandscape(this),
+            showDiagnostics = AppPrefs.showDiagnostics(this),
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) tileOffer = TileOffer.CanAdd
         if (savedInstanceState == null) handleIntent(intent)
@@ -177,6 +178,11 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun clearDiagnostics() = DiagnosticsLog.clear()
+
+        override fun setShowDiagnostics(show: Boolean) {
+            settings = settings.copy(showDiagnostics = show)
+            AppPrefs.setShowDiagnostics(this@MainActivity, show)
+        }
 
         override fun openOverlaySettings() {
             startActivity(

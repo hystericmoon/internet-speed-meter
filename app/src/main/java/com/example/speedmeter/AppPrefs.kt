@@ -22,6 +22,7 @@ object AppPrefs {
     const val KEY_OVERLAY_POSITION = "overlay_position"
     const val KEY_OVERLAY_VERTICAL = "overlay_vertical"
     const val KEY_OVERLAY_HIDE_LANDSCAPE = "overlay_hide_landscape"
+    private const val KEY_SHOW_DIAGNOSTICS = "show_diagnostics"
 
     /** Check for, download and install new builds in the background. */
     fun autoUpdate(context: Context): Boolean =
@@ -96,6 +97,14 @@ object AppPrefs {
 
     fun setOverlayHideInLandscape(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_OVERLAY_HIDE_LANDSCAPE, enabled).apply()
+    }
+
+    /** Diagnostics card: hidden until Version is tapped 7 times. Logging runs either way. */
+    fun showDiagnostics(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_SHOW_DIAGNOSTICS, false)
+
+    fun setShowDiagnostics(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SHOW_DIAGNOSTICS, show).apply()
     }
 
     /** For components that react to settings live (the service moves the overlay as you drag). */
