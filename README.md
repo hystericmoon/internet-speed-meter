@@ -319,8 +319,8 @@ The spike's open questions can only be answered on real hardware. Please report
 - [ ] **Overlay: position:** can you find a spot that clears the clock, icons and camera? Does it hold after rotating?
 - [x] **Overlay: full screen (landscape):** hides on Samsung A55 since *Hide in landscape*.
 - [ ] **Overlay: full screen (portrait):** Reels/Shorts. Depends on the probe; screenshot Diagnostics afterwards.
-- [ ] **Overlay: stays up:** on 0.1.7–0.1.9 it "worked for a while, then didn't" (Samsung A55). Since 0.1.10 idle dims instead of hiding, and a dropped window is re-added. If it still vanishes, screenshot **Diagnostics**: it names the cause (a detection signal, `window lost`, or Android stopping the app), and the 10-minute `status` lines show when.
-- [ ] **Overlay: dimmed idle state:** is the dimmed overlay noticeable but unobtrusive, on dark and light bars?
+- [x] **Overlay: stays up:** fixed in 0.1.10 (Samsung A55). On 0.1.7–0.1.9 it "worked for a while, then didn't": idle hiding looked like a broken meter. Idle now dims instead, and a dropped window is re-added. If it ever vanishes again, screenshot **Diagnostics**.
+- [x] **Overlay: dimmed idle state:** noticeable but unobtrusive (Samsung A55).
 - [ ] **Overlay: panel:** on Samsung A55 it moved into "Other notifications". Still to confirm: is that with Speed Meter notifications fully **off**?
 - [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
 - [ ] **Units:** switch Mbps ↔ MB/s. Do the app, notification and icon all follow within a second?
