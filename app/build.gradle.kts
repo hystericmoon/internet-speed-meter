@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.roborazzi)
 }
@@ -11,7 +10,7 @@ val githubRepo = System.getenv("GITHUB_REPOSITORY") ?: "hystericmoon/internet-sp
 
 android {
     namespace = "com.example.speedmeter"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.speedmeter"
@@ -50,9 +49,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
     testOptions {
         // Robolectric needs merged resources (fonts, strings) for the screenshot tests.

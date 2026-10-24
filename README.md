@@ -11,7 +11,7 @@ Two display modes:
 - **Overlay** (experimental): the app draws the speed over the status bar itself, so it
   can stay out of the notification panel entirely.
 
-Kotlin · Jetpack Compose · minSdk 26 (Android 8.0) · targetSdk 35 (Android 15)
+Kotlin · Jetpack Compose · minSdk 26 (Android 8.0) · targetSdk 35 (Android 15) · compileSdk 37
 
 | Icon mode, update downloading | Overlay mode (dark) | Overlay needs permission |
 |---|---|---|
@@ -338,7 +338,7 @@ times) and screenshot it:
 
 ## Development
 
-Requirements: JDK 17+, Android SDK 35.
+Requirements: JDK 17+, Android SDK platform 37 (compile only; the app targets 35). Gradle 9.8, AGP 9.4 with its built-in Kotlin 2.4, Compose BOM 2026.09.
 
 ```bash
 ./gradlew assembleDebug            # build app/build/outputs/apk/debug/app-debug.apk
@@ -442,6 +442,8 @@ app/src/main/java/com/example/speedmeter/
   for confirmation every time.
 - **Dismissable notification.** On Android 14+ users can swipe the notification away; it
   reappears on the next speed change.
-- **Dependencies are pinned** to late-2024 releases (AGP 8.7, Compose BOM 2024.12),
-  which build cleanly with targetSdk 35. Newer versions exist.
+- **targetSdk stays at 35** while everything else is current (Oct 2026: AGP 9.4, Kotlin
+  2.4, Compose BOM 2026.09, compileSdk 37). Raising it changes how Android runs the app
+  (overlay and edge-to-edge behaviour), so it needs a device test pass first. Google Play
+  would require a newer target, but this app isn't distributed there.
 - **Debug builds only.** No release signing, minification or Play Store setup yet.
