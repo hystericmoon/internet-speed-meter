@@ -84,14 +84,18 @@ every notification is also listed in the panel. Overlay mode works around that:
 2. **Position:** drag **Horizontal** until the overlay clears your clock, notification
    icons and camera cutout, and **Vertical** to line it up with the clock. The real
    overlay moves as you drag.
-3. **Remove the panel entry:** tap **Notification settings** and turn notifications off
-   for Speed Meter. On **Android 13 and later** the meter then disappears from the
-   notification panel and keeps running. It's only listed under *Active apps* at the
-   bottom of Quick Settings, which is where Android lists every running service.
+3. **Hide the notification:** tap **Hide notification** and switch off **Overlay running**.
+   On **Android 13 and later** the meter then disappears from the notification panel and
+   keeps running, and update prompts still come through. It's only listed under *Active
+   apps* at the bottom of Quick Settings, which is where Android lists every running
+   service. The app then says *Notification hidden*, with **Show it again** to undo.
    On Android 12 and older, Android may show its own "running" notice instead.
 
-Turning notifications off also silences update prompts. Updates that can install
-silently still do. Anything that needs a tap waits until you open the app.
+Overlay mode's entry has its own notification channel, *Overlay running*, separate from
+*App updates*, which is why it can be hidden on its own. If One UI greys that switch
+out, **All notifications** turns off every Speed Meter notification instead. That works
+too, but silences update prompts: updates that can install silently still do, anything
+that needs a tap waits until you open the app.
 
 **Icon mode needs notifications.** The status bar icon *is* the notification, so it
 disappears while notifications are off. The app warns about this, whether they were turned off
@@ -162,7 +166,7 @@ a transparent icon can only ever leave a gap too. In overlay mode the overlay di
         ├─ SpeedIconRenderer → 24dp bitmap, two lines → notification small icon (status bar)
         ├─ notification title: full speeds, Stop action
         ├─ idle? → repost on MIN channel (out of the status bar)
-        ├─ overlay mode → SpeedOverlay window over the status bar (notification goes static, MIN)
+        ├─ overlay mode → SpeedOverlay window over the status bar (notification goes static, own MIN channel "Overlay running")
         └─ StateFlow ──► MainActivity (Compose UI) and the Quick Settings tile
 ```
 
@@ -325,7 +329,7 @@ times) and screenshot it:
 - [ ] **Overlay: full screen (portrait):** Reels/Shorts. Depends on the probe; screenshot Diagnostics afterwards.
 - [x] **Overlay: stays up:** fixed in 0.1.10 (Samsung A55). On 0.1.7–0.1.9 it "worked for a while, then didn't": idle hiding looked like a broken meter. Idle now dims instead, and a dropped window is re-added. If it ever vanishes again, screenshot **Diagnostics**.
 - [x] **Overlay: dimmed idle state:** noticeable but unobtrusive (Samsung A55).
-- [ ] **Overlay: panel:** on Samsung A55 it moved into "Other notifications". Still to confirm: is that with Speed Meter notifications fully **off**?
+- [ ] **Overlay: hide notification:** tap **Hide notification**. Can *Overlay running* be switched off on its own (Samsung A55), and does the entry then leave the panel? If the switch is greyed out, use **All notifications**.
 - [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
 - [ ] **Units:** switch Mbps ↔ MB/s. Do the app, notification and icon all follow within a second?
 - [ ] **Threshold:** pick "Below 1 Mbps" while streaming a little. Does it hide as expected?
@@ -348,7 +352,7 @@ Requirements: JDK 17+, Android SDK platform 37 (compile only; the app targets 35
 ./gradlew lintDebug                # Android lint
 ```
 
-### Tests (42)
+### Tests (43)
 
 | Test | Covers |
 |---|---|
@@ -357,7 +361,7 @@ Requirements: JDK 17+, Android SDK platform 37 (compile only; the app targets 35
 | `SpeedOverlayTest` | Horizontal and vertical position maths (always fully on screen), slider labels, one-line text format, hide-reason priority (idle dims, never hides) |
 | `UpdateInfoTest` | Parsing `version.json`, only higher versions count as updates |
 | `DiagnosticsRevealTest` | Diagnostics card hidden by default, 7 taps on Version reveal it (6 don't), Hide removes it |
-| `ScreenshotTest` | 12 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, overlay idle (dims), 200% font |
+| `ScreenshotTest` | 13 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, overlay idle (dims), overlay notification hidden, 200% font |
 
 Screenshot tests run on the JVM (Robolectric + Roborazzi), no emulator needed.
 Baselines are in `app/src/test/screenshots/`.

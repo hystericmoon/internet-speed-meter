@@ -4,6 +4,8 @@
     <string name="channel_visible_desc">Shows live download and upload speed as the status bar icon.</string>
     <string name="channel_idle_name">Speed meter (idle)</string>
     <string name="channel_idle_desc">Used while the network is idle so the meter hides from the status bar.</string>
+    <string name="channel_running_name">Overlay running</string>
+    <string name="channel_running_desc">The entry Android requires while the overlay shows your speed. Turn it off to hide it; the meter keeps running.</string>
     <string name="notification_stop">Stop</string>
     <string name="channel_updates_name">App updates</string>
     <string name="channel_updates_desc">Tells you when a new build is ready to install.</string>

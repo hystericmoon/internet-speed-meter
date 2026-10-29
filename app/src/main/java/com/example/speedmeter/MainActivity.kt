@@ -2,6 +2,7 @@ package com.example.speedmeter
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.NotificationManager
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private var tileOffer by mutableStateOf(TileOffer.Manual)
     private var canDrawOverlays by mutableStateOf(false)
     private var backgroundUnrestricted by mutableStateOf(true)
+    private var runningNotificationHidden by mutableStateOf(false)
 
     private val requestNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -79,6 +81,7 @@ class MainActivity : ComponentActivity() {
                     canDrawOverlays = canDrawOverlays,
                     diagnostics = diagnostics,
                     backgroundUnrestricted = backgroundUnrestricted,
+                    runningNotificationHidden = runningNotificationHidden,
                 )
             }
         }
@@ -105,6 +108,11 @@ class MainActivity : ComponentActivity() {
         // Pick up grants made in system settings while we were in the background.
         // Covers the in-app prompt *and* switching them off in system settings.
         notificationsDenied = !NotificationManagerCompat.from(this).areNotificationsEnabled()
+        SpeedMeterService.createChannels(this) // so the channel exists before the user is sent to it
+        runningNotificationHidden = notificationsDenied ||
+            getSystemService(NotificationManager::class.java)
+                .getNotificationChannel(SpeedMeterService.CHANNEL_RUNNING)
+                ?.importance == NotificationManager.IMPORTANCE_NONE
         backgroundUnrestricted = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         canInstallUpdates = packageManager.canRequestPackageInstalls()
         canDrawOverlays = Settings.canDrawOverlays(this)
@@ -227,6 +235,15 @@ class MainActivity : ComponentActivity() {
             startActivity(
                 Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
+            )
+        }
+
+        /** Straight to the "Overlay running" switch, so update prompts can stay on. */
+        override fun openRunningNotificationSettings() {
+            startActivity(
+                Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                    .putExtra(Settings.EXTRA_CHANNEL_ID, SpeedMeterService.CHANNEL_RUNNING),
             )
         }
 

@@ -50,6 +50,9 @@ class SpeedMeterService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_VISIBLE = "speed_visible"
         private const val CHANNEL_IDLE = "speed_idle"
+        /** Overlay mode's static entry, on its own channel so it can be switched off without
+         *  silencing update prompts. */
+        const val CHANNEL_RUNNING = "meter_running"
 
         private const val POLL_INTERVAL_MS = 1_000L
         private const val IDLE_HIDE_DELAY_MS = 5_000L
@@ -63,6 +66,38 @@ class SpeedMeterService : Service() {
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, SpeedMeterService::class.java))
+        }
+
+        /** Idempotent; also called by the app so its "Hide notification" link has a channel to open. */
+        fun createChannels(context: Context) {
+            // LOW: icon in the status bar, no sound or heads-up.
+            val visible = NotificationChannel(
+                CHANNEL_VISIBLE,
+                context.getString(R.string.channel_visible_name),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = context.getString(R.string.channel_visible_desc)
+                setShowBadge(false)
+            }
+            // MIN: shade only, never in the status bar.
+            val idle = NotificationChannel(
+                CHANNEL_IDLE,
+                context.getString(R.string.channel_idle_name),
+                NotificationManager.IMPORTANCE_MIN,
+            ).apply {
+                description = context.getString(R.string.channel_idle_desc)
+                setShowBadge(false)
+            }
+            val running = NotificationChannel(
+                CHANNEL_RUNNING,
+                context.getString(R.string.channel_running_name),
+                NotificationManager.IMPORTANCE_MIN,
+            ).apply {
+                description = context.getString(R.string.channel_running_desc)
+                setShowBadge(false)
+            }
+            context.getSystemService(NotificationManager::class.java)
+                .createNotificationChannels(listOf(visible, idle, running))
         }
 
         /** Explicit user stop: also clears the "keep running" flag so nothing restarts it. */
@@ -123,7 +158,7 @@ class SpeedMeterService : Service() {
         renderer = SpeedIconRenderer(this)
         overlay = SpeedOverlay(this)
         AppPrefs.prefs(this).registerOnSharedPreferenceChangeListener(prefListener)
-        createChannels()
+        createChannels(this)
         ContextCompat.registerReceiver(
             this,
             screenReceiver,
@@ -312,12 +347,12 @@ class SpeedMeterService : Service() {
     }
 
     /**
-     * The foreground service still needs a notification. In overlay mode it goes on the MIN
-     * channel (never in the status bar, folded at the bottom of the panel). If the user turns
-     * notifications off, Android 13+ drops it from the panel entirely and the meter keeps running.
+     * The foreground service still needs a notification. In overlay mode it goes on its own MIN
+     * channel (never in the status bar, folded at the bottom of the panel). If the user turns that
+     * channel or all notifications off, Android 13+ drops it from the panel and the meter keeps running.
      */
     private fun buildOverlayModeNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_IDLE)
+        NotificationCompat.Builder(this, CHANNEL_RUNNING)
             .setSmallIcon(R.drawable.ic_tile_speed)
             .setContentTitle(getString(R.string.overlay_notification_title))
             .setContentText(getString(R.string.overlay_notification_text))
@@ -344,26 +379,4 @@ class SpeedMeterService : Service() {
         Intent(this, SpeedMeterService::class.java).setAction(ACTION_STOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
-
-    private fun createChannels() {
-        // LOW: icon in the status bar, no sound or heads-up.
-        val visible = NotificationChannel(
-            CHANNEL_VISIBLE,
-            getString(R.string.channel_visible_name),
-            NotificationManager.IMPORTANCE_LOW,
-        ).apply {
-            description = getString(R.string.channel_visible_desc)
-            setShowBadge(false)
-        }
-        // MIN: shade only, never in the status bar.
-        val idle = NotificationChannel(
-            CHANNEL_IDLE,
-            getString(R.string.channel_idle_name),
-            NotificationManager.IMPORTANCE_MIN,
-        ).apply {
-            description = getString(R.string.channel_idle_desc)
-            setShowBadge(false)
-        }
-        notificationManager.createNotificationChannels(listOf(visible, idle))
-    }
 }

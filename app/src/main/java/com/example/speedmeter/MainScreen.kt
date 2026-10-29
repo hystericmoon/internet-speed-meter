@@ -90,6 +90,7 @@ interface MainActions {
     fun checkForUpdate()
     fun installUpdate(state: UpdateState)
     fun openNotificationSettings()
+    fun openRunningNotificationSettings()
     fun openInstallSettings()
     fun allowBackgroundRunning()
     fun clearDiagnostics()
@@ -109,6 +110,8 @@ internal fun MainScreen(
     diagnostics: List<String> = emptyList(),
     backgroundUnrestricted: Boolean = true,
     currentVersion: String = BuildConfig.VERSION_NAME,
+    /** Overlay mode's "running" entry is off: its channel, or all notifications. */
+    runningNotificationHidden: Boolean = false,
 ) {
     Column(
         modifier = Modifier
@@ -138,7 +141,7 @@ internal fun MainScreen(
 
         MeterCard(meter, settings.unit, actions)
         UpdateCard(update, canInstallUpdates, currentVersion, actions)
-        DisplayCard(settings, canDrawOverlays, actions)
+        DisplayCard(settings, canDrawOverlays, notificationsDenied, runningNotificationHidden, actions)
         AppCard(update, settings, tileOffer, backgroundUnrestricted, currentVersion, actions)
         if (settings.showDiagnostics) DiagnosticsCard(diagnostics, actions)
     }
@@ -292,6 +295,8 @@ private fun FieldLabel(title: String, description: String) {
 private fun DisplayCard(
     settings: UiSettings,
     canDrawOverlays: Boolean,
+    notificationsDenied: Boolean,
+    runningNotificationHidden: Boolean,
     actions: MainActions,
 ) {
     ShadCard {
@@ -349,14 +354,7 @@ private fun DisplayCard(
                     onCheckedChange = actions::setOverlayHideInLandscape,
                 )
                 Spacer(Modifier.height(8.dp))
-                ShadAlert(
-                    title = "Remove it from the notification panel",
-                    description = "Turn off notifications for Speed Meter. On Android 13 and later the meter " +
-                        "then leaves the panel and keeps running. Update prompts go quiet too; " +
-                        "automatic updates still install.",
-                ) {
-                    ShadButton("Notification settings", actions::openNotificationSettings, variant = ButtonVariant.Outline)
-                }
+                RunningNotificationAlert(runningNotificationHidden, notificationsDenied, actions)
             }
         }
 
@@ -389,6 +387,41 @@ private fun DisplayCard(
             label = { idleLabel(it, settings.unit, dims) },
             onSelect = actions::setIdleThreshold,
         )
+    }
+}
+
+/**
+ * Overlay mode still needs a foreground-service notification. It has its own channel, so the
+ * user can switch off just that and keep update prompts. Says which state it's in, so the
+ * result of the trip to system settings is visible on return.
+ */
+@Composable
+private fun RunningNotificationAlert(hidden: Boolean, notificationsDenied: Boolean, actions: MainActions) {
+    when {
+        // All notifications off: hidden, but update prompts are silenced too.
+        notificationsDenied -> ShadAlert(
+            title = "Notification hidden",
+            description = "All Speed Meter notifications are off, so update prompts are too. To keep them, " +
+                "turn notifications back on and switch off only “Overlay running”.",
+        ) {
+            ShadButton("Notification settings", actions::openNotificationSettings, variant = ButtonVariant.Outline)
+        }
+        hidden -> ShadAlert(
+            title = "Notification hidden",
+            description = "The meter keeps running without a notification. Android still lists it under " +
+                "Active apps in Quick Settings. Update prompts still come through.",
+        ) {
+            ShadButton("Show it again", actions::openRunningNotificationSettings, variant = ButtonVariant.Ghost)
+        }
+        else -> ShadAlert(
+            title = "Hide the notification",
+            description = "Switch off “Overlay running” in the next screen. On Android 13 and later the meter " +
+                "leaves the notification panel and keeps running, and update prompts still come through. " +
+                "If the switch is greyed out, turn off all Speed Meter notifications instead.",
+        ) {
+            ShadButton("Hide notification", actions::openRunningNotificationSettings, variant = ButtonVariant.Outline)
+            ShadButton("All notifications", actions::openNotificationSettings, variant = ButtonVariant.Ghost)
+        }
     }
 }
 

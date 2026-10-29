@@ -41,6 +41,7 @@ class ScreenshotTest {
         canDrawOverlays: Boolean = false,
         diagnostics: List<String> = emptyList(),
         backgroundUnrestricted: Boolean = true,
+        runningNotificationHidden: Boolean = false,
     ) = captureRoboImage(roborazziOptions = options) {
         ShadTheme(dark = dark) {
             MainScreen(
@@ -54,6 +55,7 @@ class ScreenshotTest {
                 canDrawOverlays = canDrawOverlays,
                 diagnostics = diagnostics,
                 backgroundUnrestricted = backgroundUnrestricted,
+                runningNotificationHidden = runningNotificationHidden,
                 currentVersion = "0.1.10",
             )
         }
@@ -110,12 +112,12 @@ class ScreenshotTest {
         backgroundUnrestricted = false,
     )
 
-    /** Overlay live and idle: badge says Idle, the setting reads "Dim when idle", the log shows the heartbeat. */
+    /** Overlay live and idle: badge says Idle, the setting reads "Dim when idle", the log shows the heartbeat.
+     *  Notifications on, so it offers "Hide notification". */
     @Test fun overlayIdleDims() = shot(
         dark = false,
         MeterState(downBytesPerSec = 410, upBytesPerSec = 120, hidden = true),
         UpdateState.UpToDate,
-        notificationsDenied = true,
         settings = UiSettings(overlay = true, showDiagnostics = true),
         canDrawOverlays = true,
         diagnostics = listOf(
@@ -127,6 +129,16 @@ class ScreenshotTest {
             "Oct 23 14:12:12  status: overlay dimmed: idle, ↓3.3K ↑0.9K",
             "Oct 23 14:12:40  overlay window lost, re-adding",
         ),
+    )
+
+    /** Overlay live, its "Overlay running" channel switched off: the alert confirms it's hidden. */
+    @Test fun overlayNotificationHidden() = shot(
+        dark = false,
+        busy,
+        UpdateState.UpToDate,
+        settings = UiSettings(overlay = true),
+        canDrawOverlays = true,
+        runningNotificationHidden = true,
     )
 
     /** WCAG 1.4.4: text must survive 200% scaling without clipping or overlap. */
@@ -153,6 +165,7 @@ object NoopActions : MainActions {
     override fun checkForUpdate() {}
     override fun installUpdate(state: UpdateState) {}
     override fun openNotificationSettings() {}
+    override fun openRunningNotificationSettings() {}
     override fun openInstallSettings() {}
     override fun allowBackgroundRunning() {}
     override fun clearDiagnostics() {}
