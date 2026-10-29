@@ -28,12 +28,13 @@ import kotlin.math.roundToInt
  * is not touchable and its alpha is capped at 0.8, Android's limit for letting touches
  * pass through untrusted overlays.
  *
- * Hiding for full-screen apps uses three independent signals, because no single one is
- * reliable across OEMs (window insets alone failed on a Samsung A55, One UI / Android 15):
- * 1. insets visibility reported to the overlay window;
- * 2. a 1px invisible "probe" window that fits the status bar: it sits at y = 0 only when
+ * Hiding for full-screen apps uses two signals:
+ * 1. a 1px invisible "probe" window that fits the status bar: it sits at y = 0 only when
  *    the status bar is gone;
- * 3. orientation: optionally hide in landscape, where full-screen video and games live.
+ * 2. orientation: optionally hide in landscape, where full-screen video and games live.
+ * Insets visibility reported to the overlay window is only logged. On a Samsung A55 (One UI,
+ * Android 15) it missed real full screen, then got stuck on "hidden" for 40+ minutes in
+ * portrait until the meter was restarted, so it can't be trusted either way.
  *
  * When the network is idle the overlay *dims* rather than hides: a meter that vanishes
  * reads the same as a broken one. Hiding is kept for full screen, where it must go.
@@ -148,8 +149,23 @@ class SpeedOverlay(private val context: Context) {
         lastState = ""
         attached = false
         probeCalibrated = false
-        probeSaysHidden = false
         insetsSayHidden = false
+        probeSaysHidden = false
+    }
+
+    /**
+     * Screen on: if the overlay is hidden for full screen, rebuild both windows so every signal
+     * is read fresh. Stuck window state otherwise survives screen off/on (seen on One UI), and
+     * only a restart cleared it. Probe calibration is kept: it's a fact about the device, and
+     * keeping it means a real full-screen app stays covered after the rebuild.
+     */
+    fun refreshIfHiddenForFullScreen() {
+        if (view == null || !lastState.startsWith("hidden: full screen")) return
+        DiagnosticsLog.log("overlay rebuilt after screen on (was $lastState)")
+        val calibrated = probeCalibrated
+        hide()
+        probeCalibrated = calibrated
+        show(position, verticalPosition, hideInLandscape)
     }
 
     fun setPosition(fraction: Float) {
@@ -207,7 +223,6 @@ class SpeedOverlay(private val context: Context) {
         val v = view ?: return
         val reason = hideReason(
             landscape = hideInLandscape && isLandscape(),
-            insetsHidden = insetsSayHidden,
             probeHidden = probeCalibrated && probeSaysHidden,
         )
         val state = reason?.let { "hidden: $it" } ?: if (hiddenWhenIdle) "dimmed: idle" else "visible"
@@ -233,7 +248,7 @@ class SpeedOverlay(private val context: Context) {
     }
 
     private fun setInsetsHidden(hidden: Boolean) {
-        if (hidden != insetsSayHidden) DiagnosticsLog.log("insets: status bar ${if (hidden) "hidden" else "shown"}")
+        if (hidden != insetsSayHidden) DiagnosticsLog.log("insets (log only): status bar ${if (hidden) "hidden" else "shown"}")
         insetsSayHidden = hidden
     }
 
@@ -326,10 +341,9 @@ class SpeedOverlay(private val context: Context) {
     companion object {
         /** Why the overlay is hidden, or null if it should show. First match wins (it's what the log reports).
          *  Idle isn't a reason: the overlay dims instead (see [IDLE_ALPHA]). */
-        fun hideReason(landscape: Boolean, insetsHidden: Boolean, probeHidden: Boolean): String? =
+        fun hideReason(landscape: Boolean, probeHidden: Boolean): String? =
             when {
                 landscape -> "landscape"
-                insetsHidden -> "full screen (insets)"
                 probeHidden -> "full screen (probe)"
                 else -> null
             }

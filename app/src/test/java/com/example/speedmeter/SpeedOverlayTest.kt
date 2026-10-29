@@ -27,10 +27,9 @@ class SpeedOverlayTest {
 
     @Test
     fun `hide reason reports the first matching cause`() {
-        assertEquals(null, SpeedOverlay.hideReason(landscape = false, insetsHidden = false, probeHidden = false))
-        assertEquals("landscape", SpeedOverlay.hideReason(landscape = true, insetsHidden = true, probeHidden = false))
-        assertEquals("full screen (insets)", SpeedOverlay.hideReason(landscape = false, insetsHidden = true, probeHidden = true))
-        assertEquals("full screen (probe)", SpeedOverlay.hideReason(landscape = false, insetsHidden = false, probeHidden = true))
+        assertEquals(null, SpeedOverlay.hideReason(landscape = false, probeHidden = false))
+        assertEquals("landscape", SpeedOverlay.hideReason(landscape = true, probeHidden = true))
+        assertEquals("full screen (probe)", SpeedOverlay.hideReason(landscape = false, probeHidden = true))
     }
 
     @Test

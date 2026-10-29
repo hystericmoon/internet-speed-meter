@@ -193,17 +193,19 @@ a transparent icon can only ever leave a gap too. In overlay mode the overlay di
 ### Full-screen detection
 
 Android gives apps no direct way to know whether *another* app has hidden the status
-bar. Insets alone failed on a Samsung A55 (One UI, Android 15): the overlay stayed up
-over full-screen video. The overlay now hides if **any** of these says "full screen":
+bar. The overlay hides if **either** of the first two says "full screen"; insets are only
+logged:
 
 | Signal | How | Reliability |
 |---|---|---|
 | **Landscape** | Configuration orientation, with *Hide in landscape* on (default) | Dependable. Covers nearly all video and games |
-| **Insets** | Status-bar visibility reported to the overlay window | Works on stock Android; failed on One UI |
 | **Probe window** | A 1px invisible overlay that *fits* the status bar: it starts below the bar, and moves to y = 0 when the bar is hidden. It only counts after it's been seen below a visible bar, so a probe that doesn't move can't hide the overlay by mistake | Untested on device |
+| ~~Insets~~ (log only) | Status-bar visibility reported to the overlay window | **Unreliable on One UI both ways** (Samsung A55, Android 15): first it missed real full-screen video, then on 0.1.14 it got stuck on "hidden" for 40+ minutes in portrait, through screen off/on, until the meter was restarted. That was the "overlay disappears until I stop and start" bug. Since 0.1.15 it's only logged (`insets (log only): …`) |
 
-All signals are also **re-checked every second**, not only when Android sends an event,
-so a missed or stale event (e.g. around lock/unlock) can't keep the overlay hidden.
+All signals are also **re-checked every second**, not only when Android sends an event.
+And if the overlay is hidden for full screen when the **screen turns on**, both windows are
+rebuilt so every signal is read fresh (the probe keeps its calibration). A stuck signal
+then clears on the next unlock instead of needing a restart.
 
 ### Diagnostics
 
@@ -216,7 +218,7 @@ survives restarts:
 - app process started (a new one without a stop before it means Android killed the app)
 - screen off / on
 - overlay shown / removed, `dimmed: idle`, and **every time it hides or reappears, with the
-  reason**: `landscape`, `full screen (insets)` or `full screen (probe)`
+  reason**: `landscape` or `full screen (probe)`; `overlay rebuilt after screen on`
 - `overlay window lost, re-adding`: Android removed the window behind the app's back
 - `status: …` every **10 minutes** while the screen is on (mode, overlay state, speed). A gap
   in these lines pinpoints when the meter stopped ticking
@@ -327,7 +329,7 @@ times) and screenshot it:
 - [ ] **Overlay: position:** can you find a spot that clears the clock, icons and camera? Does it hold after rotating?
 - [x] **Overlay: full screen (landscape):** hides on Samsung A55 since *Hide in landscape*.
 - [ ] **Overlay: full screen (portrait):** Reels/Shorts. Depends on the probe; screenshot Diagnostics afterwards.
-- [x] **Overlay: stays up:** fixed in 0.1.10 (Samsung A55). On 0.1.7–0.1.9 it "worked for a while, then didn't": idle hiding looked like a broken meter. Idle now dims instead, and a dropped window is re-added. If it ever vanishes again, screenshot **Diagnostics**.
+- [ ] **Overlay: stays up:** two causes so far (Samsung A55). On 0.1.7–0.1.9 idle hiding looked like a broken meter; idle dims since 0.1.10. On 0.1.14 Diagnostics showed the insets signal stuck on "full screen" for 40+ minutes; since 0.1.15 insets no longer hide the overlay, and a full-screen hide is re-checked on every screen on. Confirm it now stays up all day; if not, screenshot **Diagnostics**.
 - [x] **Overlay: dimmed idle state:** noticeable but unobtrusive (Samsung A55).
 - [ ] **Overlay: hide notification:** tap **Hide notification**. Can *Overlay running* be switched off on its own (Samsung A55), and does the entry then leave the panel? If the switch is greyed out, use **All notifications**.
 - [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
@@ -431,8 +433,9 @@ app/src/main/java/com/example/speedmeter/
   solid-coloured bar (some apps, some OEM skins) covers it. Visible on a Samsung A55.
   Drawing *above* the status bar would need an accessibility service, which isn't
   appropriate for this and is rejected by Google Play.
-- **Portrait full screen** (Reels, Shorts, immersive readers) depends on the insets or
-  probe signal; only landscape is guaranteed.
+- **Portrait full screen** (immersive readers, some video players) depends on the probe
+  signal alone; only landscape is guaranteed. Reels and Shorts usually keep the status bar, so
+  the overlay rightly stays up there.
 - **Overlay text colour is fixed** (white with a shadow). Android doesn't tell other
   apps whether the status bar is currently using light or dark icons.
 - **Total device traffic.** `TrafficStats` totals include all apps and interfaces

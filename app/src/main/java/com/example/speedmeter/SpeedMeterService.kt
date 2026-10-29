@@ -144,6 +144,7 @@ class SpeedMeterService : Service() {
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     DiagnosticsLog.log("screen on: resumed")
+                    overlay.refreshIfHiddenForFullScreen()
                     resumePolling()
                 }
             }
