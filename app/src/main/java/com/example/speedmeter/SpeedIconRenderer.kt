@@ -38,10 +38,11 @@ class SpeedIconRenderer(context: Context, private val pill: Boolean = false) {
     }
 
     /**
-     * zinc-950 at 90%. With the overlay window's 0.8 alpha applied to the whole image, white
-     * text on it is ~8:1 even over a pure white bar (WCAG AA needs 4.5:1), ~13:1 over a dark one.
+     * zinc-800 at 90%: light enough to stand out on a black bar (zinc-950 disappeared there),
+     * dark enough that, with the overlay window's 0.8 alpha applied to the whole image, white
+     * text on it is ~6:1 even over a pure white bar (WCAG AA needs 4.5:1), ~10:1 over a dark one.
      */
-    private val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xE609090B.toInt() }
+    private val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xE627272A.toInt() }
     private val pillRect = RectF()
     private val digitBounds = Rect()
 
