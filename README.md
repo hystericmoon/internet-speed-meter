@@ -189,7 +189,9 @@ a transparent icon can only ever leave a gap too. In overlay mode the overlay di
   call and recording chips. The icon can't have one: Android tints icons, which would turn
   the pill into a white blob. White on the pill is ~6:1 even over a pure white bar and
   ~10:1 over a dark one (WCAG AA: 4.5:1). zinc-800 rather than near-black so the pill still
-  shows on black bars; zinc-700 would show more but drops white bars to 4.6:1. Fixed 24dp width, so it never jitters. It dims when the meter is idle, goes
+  shows on black bars, plus a 1dp white-20% hairline that defines its edge there. The
+  hairline doesn't touch the fill, so text contrast is unchanged; a lighter fill (zinc-700)
+  was rejected because it drops white bars to 4.6:1. Fixed 24dp width, so it never jitters. It dims when the meter is idle, goes
   invisible in full screen (below), and re-lays out on rotation. Every second it also checks
   that Android hasn't silently removed its window, and re-adds it if so. Its alpha is capped at 0.8,
   Android 12's limit for letting touches pass through overlays, so it can never block taps.

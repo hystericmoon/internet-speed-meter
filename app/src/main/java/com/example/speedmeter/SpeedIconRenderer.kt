@@ -43,6 +43,14 @@ class SpeedIconRenderer(context: Context, private val pill: Boolean = false) {
      * text on it is ~6:1 even over a pure white bar (WCAG AA needs 4.5:1), ~10:1 over a dark one.
      */
     private val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xE627272A.toInt() }
+
+    /** 1dp white-20% hairline: defines the pill's edge on dark bars, invisible on light ones,
+     *  and leaves the fill (so the text contrast) unchanged. */
+    private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = density
+        color = 0x33FFFFFF
+    }
     private val pillRect = RectF()
     private val digitBounds = Rect()
 
@@ -52,6 +60,10 @@ class SpeedIconRenderer(context: Context, private val pill: Boolean = false) {
         if (pill) {
             pillRect.set(0f, 0f, sizePx.toFloat(), sizePx.toFloat())
             canvas.drawRoundRect(pillRect, 6 * density, 6 * density, pillPaint)
+            // Inset by half the stroke so the hairline isn't clipped at the bitmap edge.
+            val inset = density / 2
+            pillRect.inset(inset, inset)
+            canvas.drawRoundRect(pillRect, 6 * density - inset, 6 * density - inset, outlinePaint)
         }
         val lineHeight = (sizePx - 2 * padYPx) / 2f
         drawLine(canvas, SpeedFormat.compact(downBytesPerSec, unit), top = padYPx, lineHeight)
