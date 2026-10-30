@@ -39,7 +39,7 @@ import kotlin.math.roundToInt
 class SpeedOverlay(private val context: Context) {
 
     private val windowManager = context.getSystemService(WindowManager::class.java)
-    private val renderer = SpeedIconRenderer(context, shadow = true)
+    private val renderer = SpeedIconRenderer(context, pill = true)
     private var view: ImageView? = null
     private var params: WindowManager.LayoutParams? = null
     private var probe: View? = null

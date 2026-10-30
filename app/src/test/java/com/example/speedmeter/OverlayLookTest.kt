@@ -25,7 +25,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * What the overlay draws, at 3× so it can be judged: the status bar icon's two-line image
- * with a shadow, on a dark and a light bar, active (0.8, the pass-through cap) and dimmed
+ * on its dark pill, on a dark and a light bar, active (0.8, the pass-through cap) and dimmed
  * for idle (0.8 × 0.45).
  */
 @RunWith(RobolectricTestRunner::class)
@@ -47,7 +47,7 @@ class OverlayLookTest {
 
     @Composable
     private fun Bar(color: Color, dimmed: Boolean) {
-        val bitmap = SpeedIconRenderer(LocalContext.current, shadow = true)
+        val bitmap = SpeedIconRenderer(LocalContext.current, pill = true)
             .render(1_200_000, 35_840, SpeedUnit.BITS)
             .asImageBitmap()
         Box(Modifier.background(color).size(86.dp), contentAlignment = Alignment.Center) {
