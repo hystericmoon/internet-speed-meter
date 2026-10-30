@@ -3,19 +3,16 @@ package com.example.speedmeter
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.widget.TextView
-import androidx.core.content.res.ResourcesCompat
+import android.widget.ImageView
 import kotlin.math.roundToInt
 
 /**
@@ -42,7 +39,8 @@ import kotlin.math.roundToInt
 class SpeedOverlay(private val context: Context) {
 
     private val windowManager = context.getSystemService(WindowManager::class.java)
-    private var view: TextView? = null
+    private val renderer = SpeedIconRenderer(context, shadow = true)
+    private var view: ImageView? = null
     private var params: WindowManager.LayoutParams? = null
     private var probe: View? = null
 
@@ -76,22 +74,15 @@ class SpeedOverlay(private val context: Context) {
         }
         if (!Settings.canDrawOverlays(context)) return
 
-        val text = TextView(context).apply {
-            setTextColor(Color.WHITE)
-            // Shadow keeps white text legible when the bar behind it is light.
-            setShadowLayer(3f, 0f, 1f, 0x99000000.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-            typeface = ResourcesCompat.getFont(context, R.font.geist_mono_medium)
-            gravity = Gravity.CENTER
-            maxLines = 1
+        // The same two-line, 24dp image as the status bar icon, centred in a bar-high window.
+        val image = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.CENTER
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            // Fixed width (widest possible readout) so the overlay doesn't shift as digits change.
-            text = format(WIDEST, WIDEST, SpeedUnit.BYTES)
+            setImageBitmap(renderer.render(0, 0, SpeedUnit.BITS))
         }
-        text.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
 
         val lp = WindowManager.LayoutParams(
-            text.measuredWidth,
+            renderer.sizePx,
             statusBarHeight(),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -114,8 +105,8 @@ class SpeedOverlay(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) setFitInsetsTypes(0)
         }
 
-        watchInsets(text)
-        text.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+        watchInsets(image)
+        image.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) {
                 attached = true
             }
@@ -123,7 +114,7 @@ class SpeedOverlay(private val context: Context) {
             override fun onViewDetachedFromWindow(v: View) {}
         })
         try {
-            windowManager.addView(text, lp)
+            windowManager.addView(image, lp)
         } catch (e: Exception) {
             Log.w("SpeedMeter", "Couldn't add overlay", e)
             if (!addFailureLogged) DiagnosticsLog.log("couldn't add overlay: ${e.javaClass.simpleName}")
@@ -131,7 +122,7 @@ class SpeedOverlay(private val context: Context) {
             return
         }
         addFailureLogged = false
-        view = text
+        view = image
         params = lp
         addProbe()
         DiagnosticsLog.log("overlay shown")
@@ -194,7 +185,7 @@ class SpeedOverlay(private val context: Context) {
             show(position, verticalPosition, hideInLandscape)
         }
         val v = view ?: return
-        v.text = format(state.downBytesPerSec, state.upBytesPerSec, unit)
+        v.setImageBitmap(renderer.render(state.downBytesPerSec, state.upBytesPerSec, unit))
         hiddenWhenIdle = state.hidden
         pollSignals()
         applyVisibility()
@@ -352,8 +343,8 @@ class SpeedOverlay(private val context: Context) {
         private const val MAX_PASS_THROUGH_ALPHA = 0.8f
         /** Idle opacity, multiplied by the window's 0.8: about 36% in total. Present, but quiet. */
         const val IDLE_ALPHA = 0.45f
-        private const val WIDEST = 999L * 1_024 * 1_024
 
+        /** One-line text form, for the Diagnostics status line. */
         fun format(downBytesPerSec: Long, upBytesPerSec: Long, unit: SpeedUnit): String =
             "↓${SpeedFormat.compact(downBytesPerSec, unit)} ↑${SpeedFormat.compact(upBytesPerSec, unit)}"
 

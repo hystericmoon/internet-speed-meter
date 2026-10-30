@@ -57,7 +57,7 @@ You only do this once. After that the app updates itself (see [Auto-update](#aut
 |---|---|
 | **App** | Start/stop the meter, see live speed, change settings, install updates |
 | **Status bar, icon mode** | Two lines: download on top, upload below, e.g. `9.6M` over `287K` |
-| **Status bar, overlay mode** | One line drawn over the bar, e.g. `↓9.6M ↑287K`, at the position you choose |
+| **Status bar, overlay mode** | The same two lines and size as the icon, drawn over the bar at the position you choose |
 | **Notification** | Icon mode: full speeds (e.g. `↓ 9.6 Mbps   ↑ 287 kbps`) and a **Stop** button. Overlay mode: a static, minimum-priority entry, or nothing at all (see below). Tap it to open the app |
 | **Quick Settings tile** | Tap to start/stop. Its subtitle shows live download speed while the shade is open |
 
@@ -184,11 +184,17 @@ a transparent icon can only ever leave a gap too. In overlay mode the overlay di
 - **Low churn.** The notification is only reposted when something visible changes.
 - **Overlay mode.** `SpeedOverlay` adds a non-touchable `TYPE_APPLICATION_OVERLAY`
   window at the top of the screen, sized to the status bar height and laid out into the
-  cutout area. It has a fixed width so it doesn't jitter, and white text with a soft
-  shadow so it reads on dark and light bars. It dims when the meter is idle, goes
+  cutout area. It shows the **same 24dp two-line image as the status bar icon**
+  (`SpeedIconRenderer`), plus a soft dark shadow the icon can't have (Android tints icons,
+  which would turn a shadow into a white blur). Fixed 24dp width, so it never jitters. It dims when the meter is idle, goes
   invisible in full screen (below), and re-lays out on rotation. Every second it also checks
   that Android hasn't silently removed its window, and re-adds it if so. Its alpha is capped at 0.8,
   Android 12's limit for letting touches pass through overlays, so it can never block taps.
+
+  ![Overlay on a dark and a light bar, active and dimmed, at 3×](app/src/test/screenshots/com.example.speedmeter.OverlayLookTest.overlayLook.png)
+
+  *At 3×: dark bar active / dimmed, light bar active / dimmed. On light bars only the shadow
+  carries it; a dark pill behind the text is the fallback if that's not enough.*
 
 ### Full-screen detection
 
@@ -329,7 +335,7 @@ times) and screenshot it:
 - [ ] **Overlay: position:** can you find a spot that clears the clock, icons and camera? Does it hold after rotating?
 - [x] **Overlay: full screen (landscape):** hides on Samsung A55 since *Hide in landscape*.
 - [ ] **Overlay: full screen (portrait):** Reels/Shorts. Depends on the probe; screenshot Diagnostics afterwards.
-- [ ] **Overlay: stays up:** two causes so far (Samsung A55). On 0.1.7–0.1.9 idle hiding looked like a broken meter; idle dims since 0.1.10. On 0.1.14 Diagnostics showed the insets signal stuck on "full screen" for 40+ minutes; since 0.1.15 insets no longer hide the overlay, and a full-screen hide is re-checked on every screen on. Confirm it now stays up all day; if not, screenshot **Diagnostics**.
+- [x] **Overlay: stays up:** fixed in 0.1.15 (Samsung A55). Two causes: on 0.1.7–0.1.9 idle hiding looked like a broken meter (idle dims since 0.1.10); on 0.1.14 Diagnostics showed the insets signal stuck on "full screen" for 40+ minutes (insets are log-only since 0.1.15, and a full-screen hide is re-checked on every screen on).
 - [x] **Overlay: dimmed idle state:** noticeable but unobtrusive (Samsung A55).
 - [ ] **Overlay: hide notification:** tap **Hide notification**. Can *Overlay running* be switched off on its own (Samsung A55), and does the entry then leave the panel? If the switch is greyed out, use **All notifications**.
 - [ ] **Overlay: light apps:** open an app with a white status bar (e.g. Settings). Is the text still readable?
@@ -354,15 +360,16 @@ Requirements: JDK 17+, Android SDK platform 37 (compile only; the app targets 35
 ./gradlew lintDebug                # Android lint
 ```
 
-### Tests (43)
+### Tests (44)
 
 | Test | Covers |
 |---|---|
 | `SpeedFormatTest` | Mbps/MB/s conversion, rounding, unit switching, 4-character limit for the icon, threshold labels (incl. "Never dim" in overlay mode) |
 | `RateSamplerTest` | Rate maths, counter resets, 5 s idle hiding, "never hide", changing the threshold at runtime, screen-off reset |
-| `SpeedOverlayTest` | Horizontal and vertical position maths (always fully on screen), slider labels, one-line text format, hide-reason priority (idle dims, never hides) |
+| `SpeedOverlayTest` | Horizontal and vertical position maths (always fully on screen), slider labels, one-line text format (Diagnostics), hide-reason priority (idle dims, never hides) |
 | `UpdateInfoTest` | Parsing `version.json`, only higher versions count as updates |
 | `DiagnosticsRevealTest` | Diagnostics card hidden by default, 7 taps on Version reveal it (6 don't), Hide removes it |
+| `OverlayLookTest` | The overlay's image (icon renderer + shadow) on dark and light bars, active and dimmed, at 3× |
 | `ScreenshotTest` | 13 states of the main screen: light/dark, errors, update flow, MB/s, tile states, overlay mode with and without permission, overlay idle (dims), overlay notification hidden, 200% font |
 
 Screenshot tests run on the JVM (Robolectric + Roborazzi), no emulator needed.
@@ -400,7 +407,7 @@ app/src/main/java/com/example/speedmeter/
 ├── SpeedMeterService.kt      foreground service: polling, notification, idle hiding
 ├── RateSampler.kt            pure rate + idle logic (unit-tested)
 ├── SpeedFormat.kt            Mbps / MB/s formatting, compact icon form
-├── SpeedIconRenderer.kt      draws the two-line status bar bitmap
+├── SpeedIconRenderer.kt      draws the two-line bitmap: status bar icon, and the overlay (with shadow)
 ├── SpeedOverlay.kt           overlay mode: floating text window over the status bar
 ├── DiagnosticsLog.kt         persisted testing log shown in the app (spike only)
 ├── SpeedMeterTileService.kt  Quick Settings tile
@@ -436,7 +443,7 @@ app/src/main/java/com/example/speedmeter/
 - **Portrait full screen** (immersive readers, some video players) depends on the probe
   signal alone; only landscape is guaranteed. Reels and Shorts usually keep the status bar, so
   the overlay rightly stays up there.
-- **Overlay text colour is fixed** (white with a shadow). Android doesn't tell other
+- **Overlay colour is fixed** (white with a shadow). Android doesn't tell other
   apps whether the status bar is currently using light or dark icons.
 - **Total device traffic.** `TrafficStats` totals include all apps and interfaces
   (Wi-Fi, mobile, VPN, tethering), so VPN traffic may be counted twice on some devices.
